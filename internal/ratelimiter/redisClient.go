@@ -17,7 +17,7 @@ var (
 func InitRedis() {
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:     os.Getenv("UPSTASH_REDIS_REST_URL"), // Replace with your Redis host and port
-		Password: os.Getenv("UPSTASH_REDIS_REST_TOKEN"),               // Set if your Redis instance has a password
+		Password: os.Getenv("UPSTASH_REDIS_REST_TOKEN"), // Set if your Redis instance has a password
 		DB:       0,                // Default DB
 	})
 

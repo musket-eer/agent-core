@@ -1,0 +1,215 @@
+\n==============================
+Testing endpoint: /generate-course
+Description: Generate a full course syllabus.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   131    0     0  100   131      0    108  0:00:01  0:00:01 --:--:--   108100   131    0     0  100   131      0     59  0:00:02  0:00:02 --:--:--    59100   131    0     0  100   131      0     40  0:00:03  0:00:03 --:--:--    40100   131    0     0  100   131      0     31  0:00:04  0:00:04 --:--:--    31100   131    0     0  100   131      0     24  0:00:05  0:00:05 --:--:--    24100   131    0     0  100   131      0     20  0:00:06  0:00:06 --:--:--     0100   131    0     0  100   131      0     17  0:00:07  0:00:07 --:--:--     0100   131    0     0  100   131      0     15  0:00:08  0:00:08 --:--:--     0100   131    0     0  100   131      0     13  0:00:10  0:00:09  0:00:01     0100   131    0     0  100   131      0     12  0:00:10  0:00:10 --:--:--     0100   131    0     0  100   131      0     11  0:00:11  0:00:11 --:--:--     0100   131    0     0  100   131      0     10  0:00:13  0:00:12  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:13  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:14 --:--:--     0100   131    0     0  100   131      0      8  0:00:16  0:00:15  0:00:01     0100   131    0     0  100   131      0      8  0:00:16  0:00:16 --:--:--     0100   131    0     0  100   131      0      7  0:00:18  0:00:17  0:00:01     0100   131    0     0  100   131      0      7  0:00:18  0:00:18 --:--:--     0100   131    0     0  100   131      0      6  0:00:21  0:00:19  0:00:02     0100   131    0     0  100   131      0      6  0:00:21  0:00:20  0:00:01     0100   131    0     0  100   131      0      6  0:00:21  0:00:21 --:--:--     0100   131    0     0  100   131      0      5  0:00:26  0:00:22  0:00:04     0100   131    0     0  100   131      0      5  0:00:26  0:00:23  0:00:03     0100   131    0     0  100   131      0      5  0:00:26  0:00:24  0:00:02     0100   131    0     0  100   131      0      5  0:00:26  0:00:25  0:00:01     0100   131    0     0  100   131      0      4  0:00:32  0:00:26  0:00:06     0100   131    0     0  100   131      0      4  0:00:32  0:00:27  0:00:05     0100   131    0     0  100   131      0      4  0:00:32  0:00:28  0:00:04     0100   131    0     0  100   131      0      4  0:00:32  0:00:29  0:00:03     0100   131    0     0  100   131      0      4  0:00:32  0:00:30  0:00:02     0100   131    0     0  100   131      0      4  0:00:32  0:00:31  0:00:01     0100   131    0     0  100   131      0      4  0:00:32  0:00:32 --:--:--     0100   131    0     0  100   131      0      3  0:00:43  0:00:33  0:00:10     0100   131    0     0  100   131      0      3  0:00:43  0:00:34  0:00:09     0100   131    0     0  100   131      0      3  0:00:43  0:00:35  0:00:08     0100   131    0     0  100   131      0      3  0:00:43  0:00:36  0:00:07     0100   131    0     0  100   131      0      3  0:00:43  0:00:37  0:00:06     0100   131    0     0  100   131      0      3  0:00:43  0:00:38  0:00:05     0100   131    0     0  100   131      0      3  0:00:43  0:00:39  0:00:04     0100   131    0     0  100   131      0      3  0:00:43  0:00:40  0:00:03     0100   131    0     0  100   131      0      3  0:00:43  0:00:41  0:00:02     0100   131    0     0  100   131      0      3  0:00:43  0:00:42  0:00:01     0100   131    0     0  100   131      0      3  0:00:43  0:00:43 --:--:--     0100   131    0     0  100   131      0      2  0:01:05  0:00:44  0:00:21     0100   131    0     0  100   131      0      2  0:01:05  0:00:45  0:00:20     0100   131    0     0  100   131      0      2  0:01:05  0:00:46  0:00:19     0100   131    0     0  100   131      0      2  0:01:05  0:00:47  0:00:18     0100  4717    0  4586  100   131     96      2  0:01:05  0:00:47  0:00:18  1076100  4717    0  4586  100   131     96      2  0:01:05  0:00:47  0:00:18  1408
+
+[HTTP STATUS]: 200
+[TOTAL TIME]: 47.710915s
+[RESPONSE BODY]:
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8",
+  "title": "AI Fundamentals for Beginners",
+  "description": "This course introduces the core concepts of artificial intelligence, including machine learning, neural networks, and real-world applications. Designed for beginners with no prior AI knowledge.",
+  "difficulty": "beginner",
+  "totalDuration": 20,
+  "weeklyHours": 5,
+  "prerequisites": [],
+  "learningObjectives": [
+    "Understand basic AI concepts and terminology",
+    "Learn how machine learning works",
+    "Explore real-world AI applications",
+    "Gain hands-on experience with simple AI tools",
+    "Develop critical thinking about AI ethics"
+  ],
+  "units": [
+    {
+      "id": "u1-a2b3-c4d5-e6f7-g8h9i0j1k2",
+      "title": "Introduction to Artificial Intelligence",
+      "description": "Learn what AI is, its history, and why it matters today.",
+      "duration": 120,
+      "objectives": [
+        "Define artificial intelligence",
+        "Identify key milestones in AI history",
+        "Recognize AI in everyday life"
+      ],
+      "content": [
+        "What is AI? Definitions and types",
+        "Brief history of AI development",
+        "Current AI capabilities and limitations",
+        "Ethical considerations in AI",
+        "AI in popular culture vs reality"
+      ],
+      "exercises": [
+        "Find and document 3 AI applications you use daily",
+        "Write a short reflection on AI ethics concerns"
+      ],
+      "assessment": "10-question quiz on AI fundamentals"
+    },
+    {
+      "id": "u2-b3c4-d5e6-f7g8-h9i0j1k2l3",
+      "title": "Machine Learning Basics",
+      "description": "Discover how machines learn from data without explicit programming.",
+      "duration": 180,
+      "objectives": [
+        "Understand supervised vs unsupervised learning",
+        "Learn how algorithms improve with data",
+        "Recognize common ML applications"
+      ],
+      "content": [
+        "The concept of machine learning",
+        "Supervised learning examples",
+        "Unsupervised learning examples",
+        "Training data and models",
+        "Common ML algorithms overview"
+      ],
+      "exercises": [
+        "Classify sample datasets as supervised/unsupervised",
+        "Predict outcomes using a simple decision tree"
+      ],
+      "assessment": "Create a flowchart explaining ML process"
+    },
+    {
+      "id": "u3-c4d5-e6f7-g8h9-i0j1k2l3m4",
+      "title": "Neural Networks Demystified",
+      "description": "Explore how artificial neural networks mimic human brain functions.",
+      "duration": 240,
+      "objectives": [
+        "Understand basic NN architecture",
+        "Learn about layers and neurons",
+        "Recognize NN applications"
+      ],
+      "content": [
+        "Biological vs artificial neurons",
+        "Layers in neural networks",
+        "Activation functions",
+        "Simple NN example",
+        "Limitations of NNs"
+      ],
+      "exercises": [
+        "Draw a simple neural network diagram",
+        "Calculate outputs for given inputs"
+      ],
+      "assessment": "Multiple-choice test on NN concepts"
+    },
+    {
+      "id": "u4-d5e6-f7g8-h9i0-j1k2l3m4n5",
+      "title": "AI in the Real World",
+      "description": "Examine practical applications of AI across different industries.",
+      "duration": 180,
+      "objectives": [
+        "Identify AI use in healthcare",
+        "Understand AI in business",
+        "Explore AI in creative fields"
+      ],
+      "content": [
+        "Medical diagnosis systems",
+        "Recommendation engines",
+        "Fraud detection",
+        "Content generation",
+        "Autonomous vehicles"
+      ],
+      "exercises": [
+        "Research an AI application in your field of interest",
+        "Debate pros/cons of AI in healthcare"
+      ],
+      "assessment": "Presentation on an AI application"
+    },
+    {
+      "id": "u5-e6f7-g8h9-i0j1-k2l3m4n5o6",
+      "title": "Hands-on AI Tools",
+      "description": "Get practical experience with beginner-friendly AI platforms.",
+      "duration": 240,
+      "objectives": [
+        "Use simple AI tools",
+        "Create basic AI projects",
+        "Understand tool limitations"
+      ],
+      "content": [
+        "Introduction to Teachable Machine",
+        "Basic image recognition",
+        "Simple text classification",
+        "Data preparation basics",
+        "Testing and improving models"
+      ],
+      "exercises": [
+        "Create an image classifier",
+        "Build a text sentiment analyzer"
+      ],
+      "assessment": "Submit two working AI prototypes"
+    }
+  ]
+}
+```\n==============================
+Testing endpoint: /generate-lesson
+Description: Generate a lesson plan.
+Payload:
+{ "title": "Lesson 1: Introduction to AI", "objective": "Understand what AI is and its applications", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100  4317    0  4153  100   164  2517k    99k --:--:-- --:--:-- --:--:-- 4215k
+
+[HTTP STATUS]: 200
+[TOTAL TIME]: 0.001611s
+[RESPONSE BODY]:
+{"endpoint":"generate-lesson","params":{"input":{"prompt":"Here is the updated prompt in **.txt** format for easy copying:  \n\n---\n\n**Lesson Sequence Generation Prompt**  \n\nRole \u0026 Objective  \nYou are an AI system responsible for generating structured lesson plans in the form of a sequence of 10 learning activities.  \nEach activity is assigned to a **Professor, Examiner, or Librarian** to ensure a well-rounded learning experience.  \n\nYour goal is to create a clear, engaging, and structured sequence of activities based on the given topic, subtopics, prior knowledge, and learning objectives.  \n\n---  \n\n**Input Data Provided**  \nYou will receive the following fields from the frontend:  \n\n1. **Topic Name** – The main subject of the lesson.  \n2. **Subtopics** – A structured list of key concepts covered in the lesson.  \n3. **Prior Knowledge** – Information that students are expected to know before starting this lesson.  \n4. **Learning Objectives** – The key outcomes students should achieve by the end of the lesson.  \n5. **Duration** – The estimated time required to complete the lesson.  \n6. **Difficulty Level** – The complexity of the lesson (e.g., Beginner, Intermediate, Advanced).  \n\nUse this data to structure the lesson logically and tailor it to the students' background and learning needs.  \n\n---  \n\n**Output Format**  \nYour output should be structured plain text, following this exact format:  \n\nThe first 7 lines represent **lesson metadata**:  \n```\nLine0: Topic Name  \nLine1: Learning Objective #1  \nLine2: Learning Objective #2  \nLine3: Learning Objective #3  \nLine4: Learning Objective #4  \nLine5: Duration  \nLine6: Difficulty  \n```  \nThe next **10 lines** contain the learning sequence, formatted as:  \n```\nactivity-id | activity-type | activity-content\n```  \n\n### Example Output (Only for Structural Reference—DO NOT Generate This Content Exactly):  \n```\n[Topic Name]  \n[Learning Objective #1]  \n[Learning Objective #2]  \n[Learning Objective #3]  \n[Learning Objective #4]  \n[Duration]  \n[Difficulty]  \n101 | Professor | [Introduction to Topic]  \n102 | Librarian | [Reading Assignment Related to Topic]  \n103 | Professor | [Concept Explanation]  \n104 | Examiner | [Quiz on Key Concept]  \n105 | Professor | [Hands-on Learning Activity]  \n106 | Librarian | [Case Study Related to Topic]  \n107 | Examiner | [Mid-lesson Knowledge Check]  \n108 | Professor | [Project or Interactive Discussion]  \n109 | Examiner | [Final Assessment]  \n110 | Professor | [Summary and Open Discussion]  \n```  \n\n---  \n\n**Rules for Activity Assignment**  \nAssign learning activities based on the type of engagement:  \n\n- **Professor** → Used for lectures, discussions, hands-on learning, and Q\u0026A.  \n- **Examiner** → Used for quizzes, assessments, and knowledge checks.  \n- **Librarian** → Used for readings, research, and case studies.  \n\n### **Lesson Structure Guide**  \nEnsure the sequence follows a logical learning flow:  \n\n1. **Start with an introduction** by the **Professor**.  \n2. Include at least **one reading activity** assigned to the **Librarian**.  \n3. Insert **two or more quizzes or assessments** assigned to the **Examiner**.  \n4. Ensure the **Professor** leads most discussions and hands-on activities.  \n5. **End with a summary and Q\u0026A** session by the **Professor**.  \n\n---  \n\n**Additional Guidelines**  \n- Always generate **exactly 10 activities** per lesson.  \n- Use concise and clear wording for activity descriptions.  \n- Ensure activities align with the provided learning objectives.  \n- **Do not return JSON or Markdown—only structured plain text** as per the format above.  \n- **DO NOT replicate the example output verbatim—only use its structure.**\n\nNote:(For future updates) We don't have exam processing capabilities so only limit the segments Professor and Librarian. No Examiner.%!(EXTRA string=Lesson 1: Introduction to AI, string=Understand what AI is and its applications, string=undergraduate, string=beginner)"},"model":"bedrock-lesson-model"},"result":"This is a mock Bedrock response."}\n==============================
+Testing endpoint: /generate-notes
+Description: Generate study notes.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   170  100    39  100   131  27310  91736 --:--:-- --:--:-- --:--:--  166k
+
+[HTTP STATUS]: 500
+[TOTAL TIME]: 0.001428s
+[RESPONSE BODY]:
+Failed to get course generation prompt
+\n==============================
+Testing endpoint: /generate-exams
+Description: Generate exam questions.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100  5340    0  5209  100   131  5458k   137k --:--:-- --:--:-- --:--:-- 5214k
+
+[HTTP STATUS]: 200
+[TOTAL TIME]: 0.000932s
+[RESPONSE BODY]:
+{"endpoint":"generate-exams","params":{"input":{"prompt":"You are an AI University Examiner responsible for generating highly personalized exam questions. Your task is to create questions that not only assess understanding but are specifically tailored to each student's unique profile, learning journey, and career aspirations.\n\nINPUT FORMAT:\nYou will receive a JSON object with the following structure:\n{\n  \"lessonTitle\": string,       // The current lesson or topic being tested\n  \"studentProfile\": {          // Student's comprehensive learning profile\n    \"name\": string,\n    \"educationLevel\": string,  // Academic background level\n    \"learningStyle\": string,   // Preferred learning method\n    \"interests\": string[],     // Personal and academic interests\n    \"strengths\": string[],     // Strong subject areas\n    \"weaknesses\": string[],    // Areas for improvement\n    \"previousScores\": number[], // Past performance metrics\n    \"careerGoals\": string[],   // Future career aspirations\n    \"preferredPace\": string,   // Learning speed preference\n    \"specialNeeds\": string[],  // Any learning accommodations\n    \"languageProficiency\": string // English proficiency level\n  },\n  \"courseDetails\": {           // Comprehensive course context\n    \"title\": string,\n    \"level\": string,\n    \"objectives\": string[],    // Learning objectives\n    \"topics\": string[],        // Topics covered\n    \"prerequisites\": string[], // Required background\n    \"industryRelevance\": string[], // Real-world applications\n    \"skillsTargeted\": string[], // Skills being developed\n    \"assessmentHistory\": {      // Previous assessment patterns\n      \"preferredTypes\": string[],\n      \"successfulFormats\": string[]\n    }\n  },\n  \"questionCount\": number      // Number of questions to generate\n}\n\nOUTPUT FORMAT:\nYou must return a JSON array of question objects. Each question object must have this structure:\n[\n  {\n    \"question_id\": string,        // Unique identifier for the question\n    \"question_text\": string,      // The actual question\n    \"field_type\": string,         // One of: \"text\", \"multiple_choice\", \"true_false\"\n    \"options\": string[],          // Required for multiple_choice, array of possible answers. Must be at least 4 options\n    \"correct_answer\": string,     // The correct answer or evaluation criteria\n    \"points\": number,            // Points allocated to this question (1-10)\n    \"difficulty_level\": string,   // One of: \"Easy\", \"Medium\", \"Hard\"\n    \"topic_area\": string,        // The specific topic this question tests\n    \"learning_objective\": string  // Must be one of the course objectives from courseDetails.objectives\n  },\n  // ... more questions\n]\n\nPERSONALIZATION GUIDELINES:\n1. Learning Style Adaptation:\n   - Visual learners: Include diagrams, charts, or visual scenarios\n   - Auditory learners: Focus on concept explanation and verbal reasoning\n   - Kinesthetic learners: Incorporate practical, hands-on scenarios\n\n2. Difficulty Calibration:\n   - Use previousScores to gauge optimal challenge level\n   - Consider educationLevel and specialNeeds\n   - Progressively increase difficulty based on performance\n\n3. Career Integration:\n   - Align questions with careerGoals\n   - Include industry-relevant examples\n   - Reference real-world applications from industryRelevance\n\n4. Interest-Based Context:\n   - Frame questions using student's interests\n   - Connect academic concepts to personal passions\n   - Use familiar scenarios from student's background\n\n5. Language Adaptation:\n   - Match complexity to languageProficiency\n   - Provide clear instructions\n   - Use culturally appropriate examples\n\n6. Skill Development:\n   - Target identified weaknesses\n   - Build upon existing strengths\n   - Align with skillsTargeted\n\n7. Pace Consideration:\n   - Match question complexity to preferredPace\n   - Balance time requirements\n   - Consider special accommodations\n\n8. Assessment History:\n   - Favor previously successful question formats\n   - Adapt based on preferredTypes\n   - Maintain consistent difficulty progressiontion and analysis questions, not just recall\n\nERROR HANDLING:\n- Always return valid JSON\n- Include all required fields\n- Validate question_id uniqueness\n- Ensure correct_answer matches one of the options for multiple_choice\n- Points should sum to a round number (e.g., 100 for 10 questions)\n\nExample question types:\n1. Knowledge Check: \"What is the primary purpose of a neural network?\"\n2. Application: \"Given scenario X, how would you apply concept Y?\"\n3. Analysis: \"Compare and contrast methods A and B in context C\"\n4. Synthesis: \"Design a solution that combines concepts X and Y\"\n5. Evaluation: \"Assess the effectiveness of approach Z in situation W\"\n\nNote: Do not return questions related to the sample questions provided. The questions need to be tailored to every class and student needs.%!(EXTRA string=AI Fundamentals, string=Teach the basics of AI, string=undergraduate, string=beginner)"},"model":"bedrock-exams-model"},"result":"This is a mock Bedrock response."}\n==============================
+Testing endpoint: /generate-resources
+Description: Generate resource recommendations.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   170  100    39  100   131  48029   157k --:--:-- --:--:-- --:--:--  166k
+
+[HTTP STATUS]: 500
+[TOTAL TIME]: 0.000812s
+[RESPONSE BODY]:
+Failed to get course generation prompt
+\n==============================
+Testing endpoint: /chat
+Description: Chat with the LLM as a professor.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Discuss AI concepts", "difficulty": "beginner", "education_level": "undergraduate", "agent_role": "professor" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   486  100   331  100   155   203k  97423 --:--:-- --:--:-- --:--:--  474k
+
+[HTTP STATUS]: 200
+[TOTAL TIME]: 0.001591s
+[RESPONSE BODY]:
+{"endpoint":"chat","params":{"input":{"prompt":"You are a knowledgeable Professor. Answer questions and provide explanations about the course material. Title: AI Fundamentals. Objective: Discuss AI concepts. Education Level: undergraduate. Difficulty: beginner.\n"},"model":"claude-v2"},"result":"This is a mock Bedrock response."}

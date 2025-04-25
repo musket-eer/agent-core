@@ -20,6 +20,11 @@ type BedrockClient struct {
 
 // CallBedrock sends a POST request to the given endpoint with the provided parameters
 func (c *BedrockClient) CallBedrock(endpoint string, params map[string]interface{}) (string, error) {
+	return c.Call(endpoint, params)
+}
+
+// Call implements the LLMClient interface
+func (c *BedrockClient) Call(endpoint string, params map[string]interface{}) (string, error) {
 	// MOCK: Return a bogus response for testing
 	mockResp := map[string]interface{}{
 		"endpoint": endpoint,

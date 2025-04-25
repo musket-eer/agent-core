@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
+
+	"agent-core/internal/prompt"
 )
 
 // Handler for /generate-exams endpoint
@@ -31,26 +32,22 @@ func GenerateExamsHandler(w http.ResponseWriter, r *http.Request) {
 	//     return
 	// }
 
-	// Instantiate BedrockClient
-	client := &BedrockClient{
-		BaseURL:   "https://api.bedrock.aws.amazon.com/v1",
-		APIKey:    "your-api-key", // Secure via env vars or secret management
-		Model:     "bedrock-exams-model",
-		HttpClient: &http.Client{Timeout: 10 * time.Second},
-	}
-
 	// Create prompt input
+	promptStr, err := prompt.GetPrompt("examGenerationPrompt")
+	if err != nil {
+		http.Error(w, "Failed to load exam generation prompt: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	prompt := map[string]interface{}{
-		"model": client.Model,
 		"input": map[string]string{
-			"prompt": "Generate exam questions for a course titled '" + req.Title + "' with objective: '" + req.Objective + "', suitable for " + req.EducationLevel + " level students and difficulty " + req.Difficulty + ".",
+			"prompt": promptWithVars(promptStr, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
 		},
 	}
 
-	// Call Bedrock
-	examResp, err := client.CallBedrock("generate-exams", prompt)
+	// Call LLM client
+	examResp, err := llmClient.Call("/generate-exams", prompt)
 	if err != nil {
-		log.Printf("Error calling Bedrock: %v", err)
+		log.Printf("Error calling LLM client: %v", err)
 		http.Error(w, "Failed to generate exams", http.StatusInternalServerError)
 		return
 	}

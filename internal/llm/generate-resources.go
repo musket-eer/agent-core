@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
+
+	"agent-core/internal/prompt"
 )
 
 // CourseRequest defines the input structure used across all generation endpoints
@@ -38,29 +39,37 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	//     return
 	// }
 
-	// Instantiate BedrockClient
-	client := &BedrockClient{
-		BaseURL:    "https://api.bedrock.aws.amazon.com/v1",
-		APIKey:     "your-api-key", // Load from env/secret manager
-		Model:      "bedrock-resources-model",
-		HttpClient: &http.Client{Timeout: 10 * time.Second},
-	}
-
 	// Create prompt input
-	prompt := map[string]interface{}{
-		"model": client.Model,
+	resourcePrompt, err := prompt.GetPrompt("resourceGenerationPrompt")
+	if err != nil {
+		log.Printf("Error getting course generation prompt: %v", err)
+		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)
+		return
+	}
+	promptMap := map[string]interface{}{
 		"input": map[string]string{
-			"prompt": "Generate supplementary resources for a course titled '" + req.Title +
-				"' with objective: '" + req.Objective +
-				"', suitable for " + req.EducationLevel +
-				" level students and difficulty " + req.Difficulty + ".",
+			"prompt": promptWithVars(resourcePrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
 		},
 	}
 
-	// Call Bedrock
-	resourcesResp, err := client.CallBedrock("generate-resources", prompt)
+	// Call LLM client
+	resourcesResp, err := llmClient.Call("/generate-resources", promptMap)
 	if err != nil {
-		log.Printf("Error calling Bedrock: %v", err)
+		log.Printf("Error calling LLM client: %v", err)
+		http.Error(w, "Failed to generate resources", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(resourcesResp))
+	prompt := map[string]interface{}{
+		"prompt": promptWithVars(resourcePrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
+	}
+
+	// Call LLM client
+	resourcesResp, err = llmClient.Call("generate-resources", prompt)
+	if err != nil {
+		log.Printf("Error calling LLM client: %v", err)
 		http.Error(w, "Failed to generate resources", http.StatusInternalServerError)
 		return
 	}

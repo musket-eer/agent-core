@@ -5,9 +5,24 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
+
+	"agent-core/internal/prompt"
 )
 
+// Import agent_roles.go
+// (Go automatically recognizes files in the same package, so types are available)
+
+
+
+// ChatRequest extends CourseRequest to include the agent role
+// (If CourseRequest is used elsewhere, this is a superset.)
+type ChatRequest struct {
+	Title          string `json:"title"`
+	Objective      string `json:"objective"`
+	Difficulty     string `json:"difficulty"`
+	EducationLevel string `json:"education_level"`
+	AgentRole      string `json:"agent_role"`
+}
 
 // Handler for /chat endpoint
 func ChatHandler(w http.ResponseWriter, r *http.Request) {
@@ -17,33 +32,50 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Decode request body
-	var req CourseRequest
+	var req ChatRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Instantiate BedrockClient
-	client := &BedrockClient{
-		BaseURL:   "https://api.bedrock.aws.amazon.com/v1", // Use actual Bedrock endpoint
-		APIKey:    "your-api-key", // Secure via env vars or secret management
-		Model:     "claude-v2",
-		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	// Validate agent role
+	role := req.AgentRole
+	var promptKey string
+	switch role {
+	case string(ProfessorAgent):
+		promptKey = "professorChatPrompt"
+	case string(LibrarianAgent):
+		promptKey = "librarianChatPrompt"
+	case string(ExaminerAgent):
+		promptKey = "examinerChatPrompt"
+	default:
+		http.Error(w, "Invalid agent_role. Must be one of: professor, librarian, examiner", http.StatusBadRequest)
+		return
 	}
 
+	// Fetch the prompt from RAM
+	promptTemplate, err := prompt.GetPrompt(promptKey)
+	if err != nil {
+		log.Printf("Error getting chat prompt for role %s: %v", role, err)
+		http.Error(w, "Failed to get chat prompt", http.StatusInternalServerError)
+		return
+	}
+
+	// Format prompt with variables
+	promptStr := promptWithVars(promptTemplate, req.Title, req.Objective, req.EducationLevel, req.Difficulty)
+
 	// Create prompt input
-	prompt := map[string]interface{}{
-		"model": client.Model,
+	promptMap := map[string]interface{}{
 		"input": map[string]string{
-			"prompt": "Chat with the assistant about the course titled '" + req.Title + "' with objective: '" + req.Objective + "', suitable for " + req.EducationLevel + " level students and difficulty " + req.Difficulty + ".",
+			"prompt": promptStr,
 		},
 	}
 
-	// Call Bedrock
-	chatResp, err := client.CallBedrock("chat", prompt)
+	// Call LLM client
+	chatResp, err := llmClient.Call("/chat", promptMap)
 	if err != nil {
-		log.Printf("Error calling Bedrock: %v", err)
+		log.Printf("Error calling LLM client: %v", err)
 		http.Error(w, "Failed to generate chat response", http.StatusInternalServerError)
 		return
 	}
@@ -52,3 +84,4 @@ func ChatHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(chatResp))
 }
+

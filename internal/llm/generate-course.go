@@ -3,9 +3,11 @@ package llm
 import (
 	"encoding/json"
 	"log"
-	"net/http"
-	"time"
+	"net/http"	
+	"agent-core/internal/prompt"
+	"agent-core/internal/llm/configs"
 )
+
 
 // Define the expected structure of input for course generation
 type CourseRequest struct {
@@ -41,26 +43,45 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 	//     return
 	// }
 
-	// Instantiate BedrockClient
-	client := &BedrockClient{
-		BaseURL:   "https://api.bedrock.aws.amazon.com/v1", // Use actual Bedrock endpoint
-		APIKey:    "your-api-key", // Secure via env vars or secret management
-		Model:     "claude-v2",
-		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	// Use the global LLM client
+	client := llmClient
+	if client == nil {
+		http.Error(w, "LLM client not initialized", http.StatusInternalServerError)
+		return
 	}
 
-	// Create prompt input
+	// Get the course generation prompt, handle error if any
+	coursePrompt, err := prompt.GetPrompt("courseGenerationPrompt")
+	if err != nil {
+		log.Printf("Error getting course generation prompt: %v", err)
+		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)
+		return
+	}
+	// Fetch model name from config
+	cfg, ok := configs.GetConfig("/generate-course")
+	if !ok {
+		log.Printf("Error: no config found for /generate-course")
+		http.Error(w, "No config for course generation", http.StatusInternalServerError)
+		return
+	}
 	prompt := map[string]interface{}{
-		"model": client.Model,
+		"model": cfg.ModelName,
 		"input": map[string]string{
-			"prompt": "Generate a course outline for a course titled '" + req.Title + "' with objective: '" + req.Objective + "', suitable for " + req.EducationLevel + " level students and difficulty " + req.Difficulty + ".",
+			"prompt": promptWithVars(coursePrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
 		},
 	}
+	// call cache for embeddings match.
+	// cachedResponse, found := checkCache(prompt)
+	// if found {
+	// 	w.Header().Set("Content-Type", "application/json")
+	// 	w.Write(cachedResponse)
+	// 	return
+	// }
 
-	// Call Bedrock
-	bedrockResp, err := client.CallBedrock("generate-course", prompt)
+	// Call LLM client
+	response, err := client.Call("/generate-course", prompt)
 	if err != nil {
-		log.Printf("Error calling Bedrock: %v", err)
+		log.Printf("Error calling LLM client: %v", err)
 		http.Error(w, "Failed to generate course", http.StatusInternalServerError)
 		return
 	}
@@ -70,5 +91,5 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(bedrockResp))
+	w.Write([]byte(response))
 }

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
+
+	"agent-core/internal/prompt"
 )
+
 
 // Handler for /generate-notes endpoint
 func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,26 +33,23 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 	//     return
 	// }
 
-	// Instantiate BedrockClient
-	client := &BedrockClient{
-		BaseURL:   "https://api.bedrock.aws.amazon.com/v1",
-		APIKey:    "your-api-key", // Secure via env vars or secret management
-		Model:     "bedrock-notes-model",
-		HttpClient: &http.Client{Timeout: 10 * time.Second},
-	}
-
 	// Create prompt input
-	prompt := map[string]interface{}{
-		"model": client.Model,
+	notesPrompt, err := prompt.GetPrompt("professorNotesPrompt")
+	if err != nil {
+		log.Printf("Error getting notes generation prompt: %v", err)
+		http.Error(w, "Failed to get notes generation prompt", http.StatusInternalServerError)
+		return
+	}
+	promptMap := map[string]interface{}{
 		"input": map[string]string{
-			"prompt": "Generate study notes for a course titled '" + req.Title + "' with objective: '" + req.Objective + "', suitable for " + req.EducationLevel + " level students and difficulty " + req.Difficulty + ".",
+			"prompt": promptWithVars(notesPrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
 		},
 	}
 
-	// Call Bedrock
-	notesResp, err := client.CallBedrock("generate-notes", prompt)
+	// Call LLM client
+	notesResp, err := llmClient.Call("/generate-notes", promptMap)
 	if err != nil {
-		log.Printf("Error calling Bedrock: %v", err)
+		log.Printf("Error calling LLM client: %v", err)
 		http.Error(w, "Failed to generate notes", http.StatusInternalServerError)
 		return
 	}

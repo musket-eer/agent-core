@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
+
+	"agent-core/internal/prompt"
 )
 
 // LessonRequestExpectation defines the expected input structure for lesson generation
@@ -32,7 +33,7 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional: Check cache here...
+	// TODO: Check cache here...
 	// cachedResponse, found := checkCache(req)
 	// if found {
 	//     w.Header().Set("Content-Type", "application/json")
@@ -40,37 +41,26 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	//     return
 	// }
 
-	// Instantiate BedrockClient
-	client := &BedrockClient{
-		BaseURL:    "https://api.bedrock.aws.amazon.com/v1",
-		APIKey:     "your-api-key", // Secure this
-		Model:      "bedrock-lesson-model",
-		HttpClient: &http.Client{Timeout: 10 * time.Second},
-	}
-
 	// Create prompt input
-	prompt := map[string]interface{}{
-		"model": client.Model,
+	promptStr, err := prompt.GetPrompt("lessonSequencePrompt")
+	if err != nil {
+		http.Error(w, "Failed to get prompt: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	promptMap := map[string]interface{}{
 		"input": map[string]string{
-			"prompt": "Generate a lesson plan for a course titled '" + req.Title + 
-				"' with objective: '" + req.Objective + 
-				"', suitable for " + req.EducationLevel + 
-				" level students and difficulty " + req.Difficulty + ".",
+			"prompt": promptWithVars(promptStr, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
 		},
 	}
 
-	// Call Bedrock
-	lessonResp, err := client.CallBedrock("generate-lesson", prompt)
+	// Call LLM client
+	lessonResp, err := llmClient.Call("/generate-lesson", promptMap)
 	if err != nil {
-		log.Printf("Error calling Bedrock: %v", err)
+		log.Printf("Error calling LLM client: %v", err)
 		http.Error(w, "Failed to generate lesson", http.StatusInternalServerError)
 		return
 	}
 
-	// Optional: Save to cache...
-	// saveToCache(req, lessonResp)
-
-	// Return the Bedrock response
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(lessonResp))
 }
