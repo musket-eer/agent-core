@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"io"
+	"os"
 	
 	"github.com/joho/godotenv"
 )
@@ -18,6 +19,15 @@ type SupabasePgvectorClient struct {
 	ApiUrl    string
 	ApiKey    string
 	TableName string
+}
+
+// NewSupabasePgvectorClient creates a new SupabasePgvectorClient with config from environment variables.
+func NewSupabasePgvectorClient() *SupabasePgvectorClient {
+	return &SupabasePgvectorClient{
+		ApiUrl:    os.Getenv("SUPABASE_API_URL"),
+		ApiKey:    os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
+		TableName: os.Getenv("SUPABASE_TABLE_NAME"),
+	}
 }
 
 type VectorRecord struct {
@@ -40,6 +50,7 @@ func (c *SupabasePgvectorClient) CacheEmbedding(query string, embedding []float6
 	}
 
 	url := fmt.Sprintf("%s/rest/v1/%s", c.ApiUrl, c.TableName)
+	fmt.Printf("[Supabase] Inserting embedding. URL: %s\nRequest Body: %s\n", url, string(body))
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -52,13 +63,16 @@ func (c *SupabasePgvectorClient) CacheEmbedding(query string, embedding []float6
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		fmt.Printf("[Supabase] ERROR sending request: %v\n", err)
 		return fmt.Errorf("failed to send request to Supabase: %w", err)
 	}
 	defer resp.Body.Close()
 
+	respBody, _ := io.ReadAll(resp.Body)
+	fmt.Printf("[Supabase] Insert response status: %s\nResponse Body: %s\n", resp.Status, string(respBody))
+
 	if resp.StatusCode >= 300 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Supabase insert failed: %s\n%s", resp.Status, string(bodyBytes))
+		return fmt.Errorf("Supabase insert failed: %s\nResponse Body: %s\nRequest Body: %s", resp.Status, string(respBody), string(body))
 	}
 
 	return nil

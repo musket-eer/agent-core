@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"agent-core/internal/prompt"
+	"agent-core/internal/cache/supabaseclient"
+	"agent-core/internal/embedding"
 )
 
 // CourseRequest defines the input structure used across all generation endpoints
@@ -18,6 +21,7 @@ type LibraryRequestExpectation struct {
 
 // Handler for /generate-resources endpoint
 func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
+	embedding.PrintEmbeddingConfig()
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -31,16 +35,47 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional: Check cache here...
-	// cachedResponse, found := checkCache(req)
-	// if found {
-	//     w.Header().Set("Content-Type", "application/json")
-	//     w.Write(cachedResponse)
-	//     return
-	// }
+	// --- Supabase Cache Check ---
+	resourcePrompt, err := prompt.GetPrompt("resourceGenerationPrompt")
+	if err != nil {
+		log.Printf("Error getting course generation prompt: %v", err)
+		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)
+		return
+	}
+	combined := struct {
+		Request CourseRequest
+		Prompt  string
+	}{
+		Request: req,
+		Prompt:  promptWithVars(resourcePrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
+	}
+	combinedBytes, _ := json.Marshal(combined)
+	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
+	if err != nil {
+		log.Printf("Embedding error: %v", err)
+		http.Error(w, "Failed to generate embedding", http.StatusInternalServerError)
+		return
+	}
+	key := string(combinedBytes)
+	supabaseClient := &supabaseclient.SupabasePgvectorClient{
+		ApiUrl:    os.Getenv("SUPABASE_API_URL"),
+		ApiKey:    os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
+		TableName: os.Getenv("SUPABASE_TABLE_NAME"),
+	}
+	var cachedResponse string
+	var hit bool
+	_, cachedResponse, hit, err = supabaseClient.Check(key, embeddingVec)
+	if err != nil {
+		log.Printf("Supabase cache check error: %v", err)
+	}
+	if hit {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cachedResponse))
+		return
+	}
 
 	// Create prompt input
-	resourcePrompt, err := prompt.GetPrompt("resourceGenerationPrompt")
+	resourcePrompt, err = prompt.GetPrompt("librarianResourcesPrompt")
 	if err != nil {
 		log.Printf("Error getting course generation prompt: %v", err)
 		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)
@@ -78,6 +113,12 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	// saveToCache(req, resourcesResp)
 
 	// Return Bedrock response
+	// --- Supabase Cache Store ---
+	err = supabaseClient.CacheEmbedding(key, embeddingVec, resourcesResp)
+	if err != nil {
+		log.Printf("Failed to cache embedding in Supabase: %v", err)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(resourcesResp))
 }

@@ -15,5 +15,8 @@ func RegisterHandlers() http.Handler {
 	mux.HandleFunc("/generate-exams", GenerateExamsHandler)
 	mux.HandleFunc("/generate-resources", GenerateResourcesHandler)
 	mux.HandleFunc("/chat", ChatHandler)
+	mux.HandleFunc("/professor-chat", ProfessorChatHandler)
+	mux.HandleFunc("/librarian-chat", LibrarianChatHandler)
+	mux.HandleFunc("/examiner-chat", ExaminerChatHandler)
 	return mux
 }

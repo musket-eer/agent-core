@@ -3,11 +3,17 @@ package llm
 import (
 	"encoding/json"
 	"log"
-	"net/http"	
+	"net/http"
+
 	"agent-core/internal/prompt"
 	"agent-core/internal/llm/configs"
+	"agent-core/internal/embedding"
+	"agent-core/internal/cache"
 )
 
+
+// SupabaseClient is a global variable to hold the Supabase client instance
+var supabaseClient = cache.NewSupabasePgvectorClient()
 
 // Define the expected structure of input for course generation
 type CourseRequest struct {
@@ -19,6 +25,9 @@ type CourseRequest struct {
 
 // Handler for /generate-course endpoint
 func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
+	embedding.PrintEmbeddingConfig()
+	
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -35,13 +44,47 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Check Rate Limiting
 	// TODO: RETRIEVE prompt BUFFER by accessing the RAM persisted promtps in configs/promts
 	
-	// TODO: Check cache here...
-	// cachedResponse, found := checkCache(req)
-	// if found {
-	//     w.Header().Set("Content-Type", "application/json")
-	//     w.Write(cachedResponse)
-	//     return
-	// }
+	// --- Supabase Cache Check ---
+	// Combine request and prompt for embedding
+	cfg, ok := configs.GetConfig("/generate-course")
+	if !ok {
+		log.Printf("Error: no config found for /generate-course")
+		http.Error(w, "No config for course generation", http.StatusInternalServerError)
+		return
+	}
+	coursePrompt, err := prompt.GetPrompt("courseGenerationPrompt")
+	if err != nil {
+		log.Printf("Error getting course generation prompt: %v", err)
+		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)
+		return
+	}
+	promptStr := promptWithVars(coursePrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty)
+	combined := struct {
+		Request CourseRequest
+		Prompt  string
+	}{
+		Request: req,
+		Prompt:  promptStr,
+	}
+	combinedBytes, _ := json.Marshal(combined)
+	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
+	if err != nil {
+		log.Printf("Embedding error: %v", err)
+		http.Error(w, "Failed to generate embedding", http.StatusInternalServerError)
+		return
+	}
+	key := string(combinedBytes)
+	var cachedResponse string
+	var hit bool
+	cachedResponse, _, hit, err = supabaseClient.Check(embeddingVec) // use the global supabaseClient
+	if err != nil {
+		log.Printf("Supabase cache check error: %v", err)
+	}
+	if hit {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cachedResponse))
+		return
+	}
 
 	// Use the global LLM client
 	client := llmClient
@@ -51,14 +94,14 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the course generation prompt, handle error if any
-	coursePrompt, err := prompt.GetPrompt("courseGenerationPrompt")
+	coursePrompt, err = prompt.GetPrompt("courseGenerationPrompt")
 	if err != nil {
 		log.Printf("Error getting course generation prompt: %v", err)
 		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)
 		return
 	}
 	// Fetch model name from config
-	cfg, ok := configs.GetConfig("/generate-course")
+	cfg, ok = configs.GetConfig("/generate-course")
 	if !ok {
 		log.Printf("Error: no config found for /generate-course")
 		http.Error(w, "No config for course generation", http.StatusInternalServerError)
@@ -86,8 +129,12 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional: Save to cache...
-	// saveToCache(req, bedrockResp)
+	// --- Supabase Cache Store ---
+	err = supabaseClient.CacheEmbedding(key, embeddingVec, response)
+	if err != nil {
+		log.Printf("Failed to cache embedding in Supabase: %v", err)
+	}
+
 
 	// Return response
 	w.Header().Set("Content-Type", "application/json")

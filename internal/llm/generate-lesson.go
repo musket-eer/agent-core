@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"agent-core/internal/prompt"
+	"agent-core/internal/embedding"
 )
 
 // LessonRequestExpectation defines the expected input structure for lesson generation
@@ -18,8 +19,10 @@ type LessonRequestExpectation struct {
 
 // CourseRequest is defined in generate-course.go and reused here.
 
+
 // Handler for /generate-lesson endpoint
 func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
+	embedding.PrintEmbeddingConfig()
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -33,16 +36,42 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Check cache here...
-	// cachedResponse, found := checkCache(req)
-	// if found {
-	//     w.Header().Set("Content-Type", "application/json")
-	//     w.Write(cachedResponse)
-	//     return
-	// }
+	// --- Supabase Cache Check ---
+	promptStr, err := prompt.GetPrompt("lessonSequencePrompt")
+	if err != nil {
+		http.Error(w, "Failed to get prompt: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	combined := struct {
+		Request CourseRequest
+		Prompt  string
+	}{
+		Request: req,
+		Prompt:  promptWithVars(promptStr, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
+	}
+	combinedBytes, _ := json.Marshal(combined)
+	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
+	if err != nil {
+		log.Printf("Embedding error: %v", err)
+		http.Error(w, "Failed to generate embedding", http.StatusInternalServerError)
+		return
+	}
+	key := string(combinedBytes)
+	
+	var cachedResponse string
+	var hit bool
+	_, cachedResponse, hit, err = SupabaseClient.Check(key, embeddingVec) // use the global SupabaseClient
+	if err != nil {
+		log.Printf("Supabase cache check error: %v", err)
+	}
+	if hit {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cachedResponse))
+		return
+	}
 
 	// Create prompt input
-	promptStr, err := prompt.GetPrompt("lessonSequencePrompt")
+	promptStr, err = prompt.GetPrompt("lessonSequencePrompt")
 	if err != nil {
 		http.Error(w, "Failed to get prompt: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -59,6 +88,12 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error calling LLM client: %v", err)
 		http.Error(w, "Failed to generate lesson", http.StatusInternalServerError)
 		return
+	}
+
+	// --- Supabase Cache Store ---
+	err = supabaseClient.CacheEmbedding(key, embeddingVec, lessonResp)
+	if err != nil {
+		log.Printf("Failed to cache embedding in Supabase: %v", err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

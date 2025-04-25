@@ -7,8 +7,11 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"agent-core/internal/cache"
 	"agent-core/internal/llm"
 )
+
+var supabaseClient *cache.SupabasePgvectorClient
 
 func main() {
 	// Load .env file
@@ -22,6 +25,11 @@ func main() {
 	log.Printf("[Startup] Deepseek API Key set: %v", apiKey != "")
 	deepseekClient := llm.NewDeepseekClient(apiKey, baseURL)
 	llm.LlmClientSet(deepseekClient)
+
+	// Set up global Supabase client
+	supabaseClient = cache.NewSupabasePgvectorClient()
+	log.Printf("[Startup] Supabase API URL: '%s'", supabaseClient.ApiUrl)
+	log.Printf("[Startup] Supabase Table: '%s'", supabaseClient.TableName)
 
 	port := 8080
 	mux := llm.RegisterHandlers()
