@@ -1,126 +1,0 @@
-\n==============================
-Testing endpoint: /generate-course
-Description: Generate a full course syllabus.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.002066s
-[RESPONSE BODY]:
-\n==============================
-Testing endpoint: /generate-lesson
-Description: Generate a lesson plan.
-Payload:
-{ "title": "Lesson 1: Introduction to AI", "objective": "Understand what AI is and its applications", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.000468s
-[RESPONSE BODY]:
-\n==============================
-Testing endpoint: /generate-notes
-Description: Generate study notes.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.000753s
-[RESPONSE BODY]:
-\n==============================
-Testing endpoint: /generate-exams
-Description: Generate exam questions.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.000666s
-[RESPONSE BODY]:
-\n==============================
-Testing endpoint: /generate-resources
-Description: Generate resource recommendations.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.000489s
-[RESPONSE BODY]:
-\n==============================
-Testing endpoint: /chat
-Description: Chat with the LLM as a professor.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Discuss AI concepts", "difficulty": "beginner", "education_level": "undergraduate", "agent_role": "professor" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.000460s
-[RESPONSE BODY]:
-\n==============================
-Testing endpoint: /professor-chat
-Description: Chat with the LLM as a professor (dedicated endpoint).
-Payload:
-{ "title": "AI Fundamentals", "objective": "Discuss AI concepts", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.000567s
-[RESPONSE BODY]:
-\n==============================
-Testing endpoint: /librarian-chat
-Description: Chat with the LLM as a librarian (dedicated endpoint).
-Payload:
-{ "title": "AI Fundamentals", "objective": "Find information resources", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.000524s
-[RESPONSE BODY]:
-\n==============================
-Testing endpoint: /examiner-chat
-Description: Chat with the LLM as an examiner (dedicated endpoint).
-Payload:
-{ "title": "AI Fundamentals", "objective": "Quiz the student on AI concepts", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server
-
-[HTTP STATUS]: 000
-[TOTAL TIME]: 0.000576s
-[RESPONSE BODY]:

@@ -36,7 +36,7 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- Supabase Cache Check ---
-	resourcePrompt, err := prompt.GetPrompt("resourceGenerationPrompt")
+	resourcePrompt, err := prompt.GetPrompt("librarianResourcesPrompt")
 	if err != nil {
 		log.Printf("Error getting course generation prompt: %v", err)
 		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)

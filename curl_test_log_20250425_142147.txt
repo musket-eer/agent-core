@@ -1,354 +1,0 @@
-\n==============================
-Testing endpoint: /generate-course
-Description: Generate a full course syllabus.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   131    0     0  100   131      0    108  0:00:01  0:00:01 --:--:--   108100   131    0     0  100   131      0     59  0:00:02  0:00:02 --:--:--    59100   131    0     0  100   131      0     40  0:00:03  0:00:03 --:--:--    40100   131    0     0  100   131      0     31  0:00:04  0:00:04 --:--:--    31100   131    0     0  100   131      0     25  0:00:05  0:00:05 --:--:--    25100   131    0     0  100   131      0     21  0:00:06  0:00:06 --:--:--     0100   131    0     0  100   131      0     18  0:00:07  0:00:07 --:--:--     0100   131    0     0  100   131      0     15  0:00:08  0:00:08 --:--:--     0100   131    0     0  100   131      0     14  0:00:09  0:00:09 --:--:--     0100   131    0     0  100   131      0     12  0:00:10  0:00:10 --:--:--     0100   131    0     0  100   131      0     11  0:00:11  0:00:11 --:--:--     0100   131    0     0  100   131      0     10  0:00:13  0:00:12  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:13  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:14 --:--:--     0100   131    0     0  100   131      0      8  0:00:16  0:00:15  0:00:01     0100   131    0     0  100   131      0      8  0:00:16  0:00:16 --:--:--     0100   131    0     0  100   131      0      7  0:00:18  0:00:17  0:00:01     0100   131    0     0  100   131      0      7  0:00:18  0:00:18 --:--:--     0100   131    0     0  100   131      0      6  0:00:21  0:00:19  0:00:02     0100   131    0     0  100   131      0      6  0:00:21  0:00:20  0:00:01     0100   131    0     0  100   131      0      6  0:00:21  0:00:21 --:--:--     0100   131    0     0  100   131      0      5  0:00:26  0:00:22  0:00:04     0100   131    0     0  100   131      0      5  0:00:26  0:00:23  0:00:03     0100   131    0     0  100   131      0      5  0:00:26  0:00:24  0:00:02     0100   131    0     0  100   131      0      5  0:00:26  0:00:25  0:00:01     0100   131    0     0  100   131      0      4  0:00:32  0:00:26  0:00:06     0100   131    0     0  100   131      0      4  0:00:32  0:00:27  0:00:05     0100   131    0     0  100   131      0      4  0:00:32  0:00:28  0:00:04     0100   131    0     0  100   131      0      4  0:00:32  0:00:29  0:00:03     0100   131    0     0  100   131      0      4  0:00:32  0:00:30  0:00:02     0100   131    0     0  100   131      0      4  0:00:32  0:00:31  0:00:01     0100   131    0     0  100   131      0      4  0:00:32  0:00:32 --:--:--     0100   131    0     0  100   131      0      3  0:00:43  0:00:33  0:00:10     0100   131    0     0  100   131      0      3  0:00:43  0:00:34  0:00:09     0100   131    0     0  100   131      0      3  0:00:43  0:00:35  0:00:08     0100   131    0     0  100   131      0      3  0:00:43  0:00:36  0:00:07     0100   131    0     0  100   131      0      3  0:00:43  0:00:37  0:00:06     0100   131    0     0  100   131      0      3  0:00:43  0:00:38  0:00:05     0100   131    0     0  100   131      0      3  0:00:43  0:00:39  0:00:04     0100   131    0     0  100   131      0      3  0:00:43  0:00:40  0:00:03     0100   131    0     0  100   131      0      3  0:00:43  0:00:41  0:00:02     0100   131    0     0  100   131      0      3  0:00:43  0:00:42  0:00:01     0100   131    0     0  100   131      0      3  0:00:43  0:00:43 --:--:--     0100   131    0     0  100   131      0      2  0:01:05  0:00:44  0:00:21     0100   131    0     0  100   131      0      2  0:01:05  0:00:45  0:00:20     0100   131    0     0  100   131      0      2  0:01:05  0:00:46  0:00:19     0100   131    0     0  100   131      0      2  0:01:05  0:00:47  0:00:18     0100   131    0     0  100   131      0      2  0:01:05  0:00:48  0:00:17     0100  4483    0  4352  100   131     89      2  0:01:05  0:00:48  0:00:17  1083
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 48.360808s
-[RESPONSE BODY]:
-```json
-{
-  "id": "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8",
-  "title": "AI Fundamentals for Beginners",
-  "description": "This course introduces the core concepts of artificial intelligence, including machine learning, neural networks, and real-world applications. Designed for beginners with no prior AI knowledge.",
-  "difficulty": "beginner",
-  "totalDuration": 20,
-  "weeklyHours": 5,
-  "prerequisites": [],
-  "learningObjectives": [
-    "Understand basic AI concepts and terminology",
-    "Explore common AI applications in daily life",
-    "Learn the fundamentals of machine learning",
-    "Gain hands-on experience with simple AI tools",
-    "Develop critical thinking about AI ethics"
-  ],
-  "units": [
-    {
-      "id": "u1a2b3c4-d5e6-7890-f1g2-h3i4j5k6l7m8",
-      "title": "Introduction to Artificial Intelligence",
-      "description": "Discover what AI is, its history, and why it matters today.",
-      "duration": 120,
-      "objectives": [
-        "Define artificial intelligence",
-        "Identify AI in everyday life",
-        "Understand AI's societal impact"
-      ],
-      "content": [
-        "What is AI? Definitions and examples",
-        "Brief history of AI development",
-        "Current AI applications across industries",
-        "Types of AI: Narrow vs General AI",
-        "AI ethics and responsible use"
-      ],
-      "exercises": [
-        "Find and document 3 AI applications in your daily routine",
-        "Write a short reflection on AI's potential benefits and risks"
-      ],
-      "assessment": "Multiple-choice quiz on AI fundamentals (20 questions)"
-    },
-    {
-      "id": "u2b3c4d5-e6f7-8901-g2h3-i4j5k6l7m8n9",
-      "title": "Machine Learning Basics",
-      "description": "Learn how machines can learn from data without explicit programming.",
-      "duration": 180,
-      "objectives": [
-        "Understand machine learning concepts",
-        "Differentiate between supervised and unsupervised learning",
-        "Recognize common ML algorithms"
-      ],
-      "content": [
-        "What is machine learning?",
-        "Supervised vs unsupervised learning",
-        "Basic algorithms: linear regression, decision trees",
-        "Training data and models",
-        "Practical examples of ML applications"
-      ],
-      "exercises": [
-        "Classify sample datasets using simple rules",
-        "Predict outcomes using a basic linear regression example"
-      ],
-      "assessment": "Create a simple ML model using provided tools (practical assignment)"
-    },
-    {
-      "id": "u3c4d5e6-f7g8-9012-h3i4-j5k6l7m8n9o0",
-      "title": "Neural Networks Demystified",
-      "description": "Explore how artificial neural networks mimic human brain functions.",
-      "duration": 240,
-      "objectives": [
-        "Understand neural network architecture",
-        "Learn about activation functions",
-        "Explore basic deep learning concepts"
-      ],
-      "content": [
-        "Biological vs artificial neurons",
-        "Layers in neural networks",
-        "Activation functions explained",
-        "Forward and backward propagation",
-        "Simple image recognition example"
-      ],
-      "exercises": [
-        "Build a single-layer neural network using an online simulator",
-        "Experiment with different activation functions"
-      ],
-      "assessment": "Design a basic neural network for a simple pattern recognition task"
-    },
-    {
-      "id": "u4d5e6f7-g8h9-0123-i4j5-k6l7m8n9o0p1",
-      "title": "AI in the Real World",
-      "description": "Examine practical AI applications and consider future implications.",
-      "duration": 180,
-      "objectives": [
-        "Analyze real-world AI case studies",
-        "Evaluate AI's impact on various industries",
-        "Consider future AI developments"
-      ],
-      "content": [
-        "AI in healthcare: diagnosis and treatment",
-        "Smart assistants and natural language processing",
-        "Autonomous vehicles technology",
-        "AI in creative fields: art and music",
-        "Future trends and job market impact"
-      ],
-      "exercises": [
-        "Research and present an AI application in your field of interest",
-        "Debate ethical considerations of a chosen AI application"
-      ],
-      "assessment": "Final project: Propose an AI solution for a real-world problem (written report)"
-    }
-  ]
-}
-```\n==============================
-Testing endpoint: /generate-lesson
-Description: Generate a lesson plan.
-Payload:
-{ "title": "Lesson 1: Introduction to AI", "objective": "Understand what AI is and its applications", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   164    0     0  100   164      0    135  0:00:01  0:00:01 --:--:--   135100   164    0     0  100   164      0     74  0:00:02  0:00:02 --:--:--    74100   164    0     0  100   164      0     51  0:00:03  0:00:03 --:--:--    51100   164    0     0  100   164      0     38  0:00:04  0:00:04 --:--:--    38100   164    0     0  100   164      0     31  0:00:05  0:00:05 --:--:--    31100   164    0     0  100   164      0     26  0:00:06  0:00:06 --:--:--     0100   164    0     0  100   164      0     22  0:00:07  0:00:07 --:--:--     0100   164    0     0  100   164      0     19  0:00:08  0:00:08 --:--:--     0100   164    0     0  100   164      0     17  0:00:09  0:00:09 --:--:--     0100   164    0     0  100   164      0     16  0:00:10  0:00:10 --:--:--     0100   164    0     0  100   164      0     14  0:00:11  0:00:11 --:--:--     0100   164    0     0  100   164      0     13  0:00:12  0:00:12 --:--:--     0100   164    0     0  100   164      0     12  0:00:13  0:00:13 --:--:--     0100   164    0     0  100   164      0     11  0:00:14  0:00:14 --:--:--     0100   164    0     0  100   164      0     10  0:00:16  0:00:15  0:00:01     0100   164    0     0  100   164      0     10  0:00:16  0:00:16 --:--:--     0100   164    0     0  100   164      0      9  0:00:18  0:00:17  0:00:01     0100   164    0     0  100   164      0      8  0:00:20  0:00:18  0:00:02     0100  1718  100  1554  100   164     82      8  0:00:20  0:00:18  0:00:02   341
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 18.802326s
-[RESPONSE BODY]:
-Here’s the structured lesson plan based on your updated prompt (excluding the **Examiner** role as specified):
-
-```
-Introduction to AI  
-Understand what AI is and its applications  
-Learn the basic terminology of AI  
-Explore real-world AI use cases  
-Reflect on ethical implications of AI  
-60 minutes  
-Beginner  
-101 | Professor | Introduction to AI: Definition and Historical Context  
-102 | Librarian | Reading Assignment: "What is AI?" (Short Article)  
-103 | Professor | Interactive Discussion: Common AI Terminology  
-104 | Librarian | Case Study: AI in Healthcare (Pre-selected Material)  
-105 | Professor | Hands-on Activity: Simple AI Demo (e.g., Chatbot)  
-106 | Librarian | Research Task: Find 3 AI Applications in Daily Life  
-107 | Professor | Group Debate: Ethical Concerns in AI Development  
-108 | Librarian | Guided Exploration: AI in Popular Media (Videos/Articles)  
-109 | Professor | Q&A Session: Clarifying Doubts and Misconceptions  
-110 | Professor | Summary & Reflection: Key Takeaways and Future Trends  
-```
-
-### Key Adjustments:  
-1. **No Examiner Activities**: Replaced quizzes/assessments with **Librarian**-led research/case studies and **Professor**-led discussions.  
-2. **Logical Flow**:  
-   - Starts with foundational knowledge (Professor).  
-   - Includes 4 Librarian tasks (readings, case studies, research).  
-   - Ends with synthesis (Professor).  
-3. **Beginner-Friendly**: Activities avoid technical depth (e.g., "Simple AI Demo" instead of coding exercises).  
-
-Let me know if you'd like further refinements!\n==============================
-Testing endpoint: /generate-notes
-Description: Generate study notes.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   170  100    39  100   131  43285   141k --:--:-- --:--:-- --:--:--  166k
-
-[HTTP STATUS]: 500
-[TOTAL TIME]: 0.000901s
-[RESPONSE BODY]:
-Failed to get course generation prompt
-\n==============================
-Testing endpoint: /generate-exams
-Description: Generate exam questions.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   131    0     0  100   131      0    108  0:00:01  0:00:01 --:--:--   108100   131    0     0  100   131      0     59  0:00:02  0:00:02 --:--:--    59100   131    0     0  100   131      0     40  0:00:03  0:00:03 --:--:--    40100   131    0     0  100   131      0     31  0:00:04  0:00:04 --:--:--    31100   131    0     0  100   131      0     25  0:00:05  0:00:05 --:--:--    25100   131    0     0  100   131      0     21  0:00:06  0:00:06 --:--:--     0100   131    0     0  100   131      0     18  0:00:07  0:00:07 --:--:--     0100   131    0     0  100   131      0     15  0:00:08  0:00:08 --:--:--     0100   131    0     0  100   131      0     14  0:00:09  0:00:09 --:--:--     0100   131    0     0  100   131      0     12  0:00:10  0:00:10 --:--:--     0100   131    0     0  100   131      0     11  0:00:11  0:00:11 --:--:--     0100   131    0     0  100   131      0     10  0:00:13  0:00:12  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:13  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:14 --:--:--     0100   131    0     0  100   131      0      8  0:00:16  0:00:15  0:00:01     0100   131    0     0  100   131      0      8  0:00:16  0:00:16 --:--:--     0100   131    0     0  100   131      0      7  0:00:18  0:00:17  0:00:01     0100   131    0     0  100   131      0      7  0:00:18  0:00:18 --:--:--     0100   131    0     0  100   131      0      6  0:00:21  0:00:19  0:00:02     0100   131    0     0  100   131      0      6  0:00:21  0:00:20  0:00:01     0100   131    0     0  100   131      0      6  0:00:21  0:00:21 --:--:--     0100   131    0     0  100   131      0      5  0:00:26  0:00:22  0:00:04     0100   131    0     0  100   131      0      5  0:00:26  0:00:23  0:00:03     0100   131    0     0  100   131      0      5  0:00:26  0:00:24  0:00:02     0100   131    0     0  100   131      0      5  0:00:26  0:00:25  0:00:01     0100   131    0     0  100   131      0      4  0:00:32  0:00:26  0:00:06     0100   131    0     0  100   131      0      4  0:00:32  0:00:27  0:00:05     0100   131    0     0  100   131      0      4  0:00:32  0:00:28  0:00:04     0100   131    0     0  100   131      0      4  0:00:32  0:00:29  0:00:03     0100   131    0     0  100   131      0      4  0:00:32  0:00:30  0:00:02     0100   131    0     0  100   131      0      4  0:00:32  0:00:31  0:00:01     0100   131    0     0  100   131      0      4  0:00:32  0:00:32 --:--:--     0100   131    0     0  100   131      0      3  0:00:43  0:00:33  0:00:10     0100   131    0     0  100   131      0      3  0:00:43  0:00:34  0:00:09     0100   131    0     0  100   131      0      3  0:00:43  0:00:35  0:00:08     0100   131    0     0  100   131      0      3  0:00:43  0:00:36  0:00:07     0100   131    0     0  100   131      0      3  0:00:43  0:00:37  0:00:06     0100   131    0     0  100   131      0      3  0:00:43  0:00:38  0:00:05     0100   131    0     0  100   131      0      3  0:00:43  0:00:39  0:00:04     0100   131    0     0  100   131      0      3  0:00:43  0:00:40  0:00:03     0100   131    0     0  100   131      0      3  0:00:43  0:00:41  0:00:02     0100  4015    0  3884  100   131     92      3  0:00:43  0:00:42  0:00:01   828100  4015    0  3884  100   131     92      3  0:00:43  0:00:42  0:00:01  1052
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 42.088036s
-[RESPONSE BODY]:
-Here’s a tailored set of exam questions based on the provided input format (though no specific JSON input was given, I’ll simulate a realistic scenario for a student studying "AI Fundamentals"):
-
-### **Example Output (JSON Array of Questions):**
-```json
-[
-  {
-    "question_id": "AI_FUND_001",
-    "question_text": "As an aspiring data scientist, explain how supervised learning differs from unsupervised learning using a real-world healthcare dataset example (your interest area). Include one strength and one limitation of each approach.",
-    "field_type": "text",
-    "options": [],
-    "correct_answer": "Evaluation criteria: 1) Clear differentiation of supervised (labeled data) vs. unsupervised (unlabeled data). 2) Relevant healthcare example (e.g., patient diagnosis vs. clustering similar symptoms). 3) Valid strength/limitation for each (e.g., accuracy vs. scalability).",
-    "points": 10,
-    "difficulty_level": "Medium",
-    "topic_area": "Machine Learning Basics",
-    "learning_objective": "Compare different AI learning paradigms"
-  },
-  {
-    "question_id": "AI_FUND_002",
-    "question_text": "You’re a visual learner analyzing social media trends. Design a flowchart showing how a decision tree algorithm classifies posts as 'positive' or 'negative' sentiment. Label key decision nodes.",
-    "field_type": "text",
-    "options": [],
-    "correct_answer": "Evaluation criteria: 1) Logical flowchart structure. 2) Correct features (e.g., word frequency, emojis). 3) Clear labels for splits (e.g., 'contains ‘happy’? → branch yes/no').",
-    "points": 8,
-    "difficulty_level": "Hard",
-    "topic_area": "Decision Trees",
-    "learning_objective": "Visualize algorithmic decision-making"
-  },
-  {
-    "question_id": "AI_FUND_003",
-    "field_type": "multiple_choice",
-    "question_text": "Your career goal is AI ethics auditing. Which of these is a bias mitigation technique for training data?",
-    "options": [
-      "Oversampling underrepresented groups",
-      "Ignoring sensitive attributes like race",
-      "Using only high-accuracy models",
-      "Training faster to reduce costs"
-    ],
-    "correct_answer": "Oversampling underrepresented groups",
-    "points": 5,
-    "difficulty_level": "Easy",
-    "topic_area": "Ethics in AI",
-    "learning_objective": "Identify fairness strategies in AI systems"
-  },
-  {
-    "question_id": "AI_FUND_004",
-    "question_text": "Kinesthetic Learner Task: Imagine you’re building a robot arm (your robotics interest). Describe how reinforcement learning would help it learn to grasp objects, including reward function design.",
-    "field_type": "text",
-    "options": [],
-    "correct_answer": "Evaluation criteria: 1) Explanation of trial-and-error learning. 2) Example reward (e.g., +1 for successful grasp, -0.1 for energy use). 3) Connection to robotics hardware constraints.",
-    "points": 12,
-    "difficulty_level": "Hard",
-    "topic_area": "Reinforcement Learning",
-    "learning_objective": "Apply RL to physical systems"
-  }
-]
-```
-
----
-
-### **Personalization Rationale**:
-1. **Career Alignment**:  
-   - Q1 targets data science (healthcare example), Q3 focuses on AI ethics auditing.  
-2. **Learning Styles**:  
-   - Q2 for visual learners (flowchart), Q4 for kinesthetic (hands-on robotics).  
-3. **Difficulty Calibration**:  
-   - Mix of Easy (Q3), Medium (Q1), and Hard (Q2, Q4) based on simulated "previousScores".  
-4. **Interests**:  
-   - Healthcare (Q1), social media (Q2), robotics (Q4).  
-5. **Language**:  
-   - Clear instructions with minimal jargon (assumed "intermediate" proficiency).  
-
----
-
-### **Error Handling Notes**:
-- All `question_id` values are unique.  
-- `correct_answer` matches options for MCQ (Q3).  
-- Points sum to 35 (adjust `questionCount` or values as needed).  
-
-Would you like me to refine any aspect (e.g., stricter adherence to a specific input JSON)?\n==============================
-Testing endpoint: /generate-resources
-Description: Generate resource recommendations.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   170  100    39  100   131  44117   144k --:--:-- --:--:-- --:--:--  166k
-
-[HTTP STATUS]: 500
-[TOTAL TIME]: 0.000884s
-[RESPONSE BODY]:
-Failed to get course generation prompt
-\n==============================
-Testing endpoint: /chat
-Description: Chat with the LLM as a professor.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Discuss AI concepts", "difficulty": "beginner", "education_level": "undergraduate", "agent_role": "professor" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   155    0     0  100   155      0    128  0:00:01  0:00:01 --:--:--   128100   155    0     0  100   155      0     70  0:00:02  0:00:02 --:--:--    70100   155    0     0  100   155      0     48  0:00:03  0:00:03 --:--:--    48100   155    0     0  100   155      0     36  0:00:04  0:00:04 --:--:--    36100   155    0     0  100   155      0     29  0:00:05  0:00:05 --:--:--    29100   155    0     0  100   155      0     24  0:00:06  0:00:06 --:--:--     0100   155    0     0  100   155      0     21  0:00:07  0:00:07 --:--:--     0100   155    0     0  100   155      0     18  0:00:08  0:00:08 --:--:--     0100   155    0     0  100   155      0     16  0:00:09  0:00:09 --:--:--     0100   155    0     0  100   155      0     15  0:00:10  0:00:10 --:--:--     0100   155    0     0  100   155      0     13  0:00:11  0:00:11 --:--:--     0100   155    0     0  100   155      0     12  0:00:12  0:00:12 --:--:--     0100   155    0     0  100   155      0     11  0:00:14  0:00:13  0:00:01     0100   155    0     0  100   155      0     10  0:00:15  0:00:14  0:00:01     0100   155    0     0  100   155      0     10  0:00:15  0:00:15 --:--:--     0100   155    0     0  100   155      0      9  0:00:17  0:00:16  0:00:01     0100   155    0     0  100   155      0      8  0:00:19  0:00:17  0:00:02     0100   155    0     0  100   155      0      8  0:00:19  0:00:18  0:00:01     0100   155    0     0  100   155      0      8  0:00:19  0:00:19 --:--:--     0100   155    0     0  100   155      0      7  0:00:22  0:00:20  0:00:02     0100   155    0     0  100   155      0      7  0:00:22  0:00:21  0:00:01     0100   155    0     0  100   155      0      6  0:00:25  0:00:22  0:00:03     0100   155    0     0  100   155      0      6  0:00:25  0:00:23  0:00:02     0100   155    0     0  100   155      0      6  0:00:25  0:00:24  0:00:01     0100   155    0     0  100   155      0      6  0:00:25  0:00:25 --:--:--     0100  2473    0  2318  100   155     88      5  0:00:31  0:00:26  0:00:05   467100  2473    0  2318  100   155     88      5  0:00:31  0:00:26  0:00:05   585
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 26.218516s
-[RESPONSE BODY]:
-**Title: AI Fundamentals – Beginner-Level Lecture Notes**  
-**Objective:** Introduce core AI concepts for undergraduate students with no prior background.  
-
----
-
-### **1. What is Artificial Intelligence (AI)?**  
-**Definition:** AI refers to machines designed to perform tasks that typically require human intelligence, such as reasoning, learning, decision-making, or perception.  
-
-**Key Ideas:**  
-- **Narrow AI:** Specialized in one task (e.g., chatbots, recommendation systems).  
-- **General AI (hypothetical):** Human-like adaptability across diverse tasks (not yet achieved).  
-
----
-
-### **2. Core Concepts**  
-#### **a) Machine Learning (ML)**  
-- **Definition:** A subset of AI where systems learn from data without explicit programming.  
-- **Example:** Spam filters improve by analyzing labeled emails ("spam" vs. "not spam").  
-
-#### **b) Neural Networks & Deep Learning**  
-- **Neural Network:** A model inspired by the human brain’s interconnected neurons.  
-- **Deep Learning:** Uses multi-layered neural networks for complex tasks (e.g., image recognition).  
-
-#### **c) Natural Language Processing (NLP)**  
-- Enables machines to understand/generate human language (e.g., ChatGPT, translation tools).  
-
----
-
-### **3. How AI Systems Learn**  
-- **Supervised Learning:** Trained on labeled data (input-output pairs).  
-- **Unsupervised Learning:** Finds patterns in unlabeled data (e.g., customer segmentation).  
-- **Reinforcement Learning:** Learns via rewards/punishments (e.g., game-playing AI).  
-
----
-
-### **4. Ethical Considerations**  
-- **Bias:** AI can inherit biases from training data (e.g., discriminatory hiring algorithms).  
-- **Transparency:** "Black box" problems make some AI decisions hard to explain.  
-
----
-
-### **5. Real-World Applications**  
-- **Healthcare:** Diagnosing diseases from medical scans.  
-- **Autonomous Vehicles:** Self-driving cars use AI for navigation.  
-- **Finance:** Fraud detection algorithms.  
-
----
-
-**Discussion Question:** *Can you think of an AI application you use daily? How might it work behind the scenes?*  
-
-**Further Reading:**  
-- Russell & Norvig, *Artificial Intelligence: A Modern Approach* (Chapter 1).  
-- Online Course: Andrew Ng’s *Machine Learning* (Coursera).  
-
-Let me know if you’d like to explore any topic in more depth!

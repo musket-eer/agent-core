@@ -1,355 +1,0 @@
-\n==============================
-Testing endpoint: /generate-course
-Description: Generate a full course syllabus.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   180  100    49  100   131     53    143 --:--:-- --:--:-- --:--:--   197100   180  100    49  100   131     53    143 --:--:-- --:--:-- --:--:--   197
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 0.912663s
-[RESPONSE BODY]:
-{"answer": "This is a test response for query 1"}\n==============================
-Testing endpoint: /generate-lesson
-Description: Generate a lesson plan.
-Payload:
-{ "title": "Lesson 1: Introduction to AI", "objective": "Understand what AI is and its applications", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   164    0     0  100   164      0    135  0:00:01  0:00:01 --:--:--   135100   164    0     0  100   164      0     74  0:00:02  0:00:02 --:--:--    74100   164    0     0  100   164      0     51  0:00:03  0:00:03 --:--:--    51100   164    0     0  100   164      0     38  0:00:04  0:00:04 --:--:--    38100   164    0     0  100   164      0     31  0:00:05  0:00:05 --:--:--    31100   164    0     0  100   164      0     26  0:00:06  0:00:06 --:--:--     0100   164    0     0  100   164      0     22  0:00:07  0:00:07 --:--:--     0100   164    0     0  100   164      0     19  0:00:08  0:00:08 --:--:--     0100   164    0     0  100   164      0     17  0:00:09  0:00:09 --:--:--     0100   164    0     0  100   164      0     16  0:00:10  0:00:10 --:--:--     0100   164    0     0  100   164      0     14  0:00:11  0:00:11 --:--:--     0100   164    0     0  100   164      0     13  0:00:12  0:00:12 --:--:--     0100   164    0     0  100   164      0     12  0:00:13  0:00:13 --:--:--     0100   164    0     0  100   164      0     11  0:00:14  0:00:14 --:--:--     0100   164    0     0  100   164      0     10  0:00:16  0:00:15  0:00:01     0100   164    0     0  100   164      0     10  0:00:16  0:00:16 --:--:--     0100   164    0     0  100   164      0      9  0:00:18  0:00:17  0:00:01     0100  1689  100  1525  100   164     87      9  0:00:18  0:00:17  0:00:01   358
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 17.488049s
-[RESPONSE BODY]:
-Here’s the structured lesson plan based on your input, following the specified format and excluding the **Examiner** role as instructed:
-
-```
-Introduction to AI  
-Understand what AI is and its applications  
-Learn the basic terminology of AI  
-Explore real-world AI use cases  
-Discuss ethical considerations in AI  
-60 minutes  
-Beginner  
-101 | Professor | Introduction to AI: Definition and historical context  
-102 | Librarian | Reading assignment: "What is AI?" (foundational article)  
-103 | Professor | Interactive discussion: Key AI terminology (ML, NLP, etc.)  
-104 | Librarian | Case study: AI in healthcare (pre-assigned material)  
-105 | Professor | Hands-on activity: Simple AI demo (e.g., chatbot interaction)  
-106 | Librarian | Research task: Find and summarize an AI application in daily life  
-107 | Professor | Group debate: Ethical implications of AI  
-108 | Librarian | Guided reading: "AI Success Stories" (industry examples)  
-109 | Professor | Q&A session: Clarifying doubts and misconceptions  
-110 | Professor | Summary & reflection: Key takeaways and future learning paths  
-```
-
-### Key Adjustments:  
-- Replaced **Examiner** activities with **Librarian** (readings/research) and **Professor** (discussions/hands-on).  
-- Maintained logical flow: Introduction → Knowledge building → Application → Reflection.  
-- Activities align with the provided objectives (terminology, applications, ethics).  
-- All 10 activities are included as required.  
-
-Let me know if you'd like any refinements!\n==============================
-Testing endpoint: /generate-notes
-Description: Generate study notes.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   131    0     0  100   131      0    108  0:00:01  0:00:01 --:--:--   108100   131    0     0  100   131      0     59  0:00:02  0:00:02 --:--:--    59100   131    0     0  100   131      0     40  0:00:03  0:00:03 --:--:--    40100   131    0     0  100   131      0     31  0:00:04  0:00:04 --:--:--    31100   131    0     0  100   131      0     25  0:00:05  0:00:05 --:--:--    25100   131    0     0  100   131      0     21  0:00:06  0:00:06 --:--:--     0100   131    0     0  100   131      0     18  0:00:07  0:00:07 --:--:--     0100   131    0     0  100   131      0     15  0:00:08  0:00:08 --:--:--     0100   131    0     0  100   131      0     14  0:00:09  0:00:09 --:--:--     0100   131    0     0  100   131      0     12  0:00:10  0:00:10 --:--:--     0100   131    0     0  100   131      0     11  0:00:11  0:00:11 --:--:--     0100   131    0     0  100   131      0     10  0:00:13  0:00:12  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:13  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:14 --:--:--     0100   131    0     0  100   131      0      8  0:00:16  0:00:15  0:00:01     0100   131    0     0  100   131      0      8  0:00:16  0:00:16 --:--:--     0100   131    0     0  100   131      0      7  0:00:18  0:00:17  0:00:01     0100   131    0     0  100   131      0      7  0:00:18  0:00:18 --:--:--     0100   131    0     0  100   131      0      6  0:00:21  0:00:19  0:00:02     0100   131    0     0  100   131      0      6  0:00:21  0:00:20  0:00:01     0100  1857  100  1726  100   131     84      6  0:00:21  0:00:20  0:00:01   415
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 20.409534s
-[RESPONSE BODY]:
-**INTRODUCTION TO AI FUNDAMENTALS**  
-
-**What Is Artificial Intelligence?**  
-This section introduces the core idea of AI, its significance, and real-world applications. AI mimics human intelligence using algorithms and data to perform tasks like decision-making, pattern recognition, and problem-solving.  
-
-- **Key Concepts:**  
-  - **Definition:** AI refers to machines designed to perform tasks that typically require human intelligence.  
-  - **Types of AI:**  
-    - Narrow AI (task-specific, e.g., chatbots)  
-    - General AI (hypothetical, human-like reasoning)  
-  - **Core Components:** Data, algorithms, computing power  
-  - **Applications:** Healthcare (diagnosis), finance (fraud detection), autonomous vehicles  
-
-**Why Learn AI?**  
-AI is transforming industries, creating demand for professionals who understand its principles. Mastering basics helps you:  
-- Solve complex problems efficiently  
-- Build intelligent systems  
-- Stay competitive in tech-driven fields  
-
-**Approach to Writing Your First AI Program**  
-While you won’t write code here, consider these steps for future exercises:  
-1. **Define the Problem:** What task should the AI solve? (e.g., classify images)  
-2. **Choose Tools:** Python libraries like `scikit-learn` for beginners.  
-3. **Train a Model:** Use labeled data to teach the AI patterns.  
-4. **Evaluate:** Test accuracy and refine.  
-
-**References:**  
-- Russell & Norvig, *Artificial Intelligence: A Modern Approach* (Ch. 1)  
-- IBM’s *AI Fundamentals* whitepapers (free resource)  
-
-**Next Steps:**  
-- Explore simple AI examples (e.g., spam filters) to see theory in action.  
-- In later sections, you’ll dive into algorithms like decision trees or neural networks.\n==============================
-Testing endpoint: /generate-exams
-Description: Generate exam questions.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   131    0     0  100   131      0    108  0:00:01  0:00:01 --:--:--   108100   131    0     0  100   131      0     59  0:00:02  0:00:02 --:--:--    59100   131    0     0  100   131      0     40  0:00:03  0:00:03 --:--:--    40100   131    0     0  100   131      0     31  0:00:04  0:00:04 --:--:--    31100   131    0     0  100   131      0     25  0:00:05  0:00:05 --:--:--    25100   131    0     0  100   131      0     21  0:00:06  0:00:06 --:--:--     0100   131    0     0  100   131      0     18  0:00:07  0:00:07 --:--:--     0100   131    0     0  100   131      0     15  0:00:08  0:00:08 --:--:--     0100   131    0     0  100   131      0     14  0:00:09  0:00:09 --:--:--     0100   131    0     0  100   131      0     12  0:00:10  0:00:10 --:--:--     0100   131    0     0  100   131      0     11  0:00:11  0:00:11 --:--:--     0100   131    0     0  100   131      0     10  0:00:13  0:00:12  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:13  0:00:01     0100   131    0     0  100   131      0      9  0:00:14  0:00:14 --:--:--     0100   131    0     0  100   131      0      8  0:00:16  0:00:15  0:00:01     0100   131    0     0  100   131      0      8  0:00:16  0:00:16 --:--:--     0100   131    0     0  100   131      0      7  0:00:18  0:00:17  0:00:01     0100   131    0     0  100   131      0      7  0:00:18  0:00:18 --:--:--     0100   131    0     0  100   131      0      6  0:00:21  0:00:19  0:00:02     0100   131    0     0  100   131      0      6  0:00:21  0:00:20  0:00:01     0100   131    0     0  100   131      0      6  0:00:21  0:00:21 --:--:--     0100   131    0     0  100   131      0      5  0:00:26  0:00:22  0:00:04     0100   131    0     0  100   131      0      5  0:00:26  0:00:23  0:00:03     0100   131    0     0  100   131      0      5  0:00:26  0:00:24  0:00:02     0100   131    0     0  100   131      0      5  0:00:26  0:00:25  0:00:01     0100   131    0     0  100   131      0      4  0:00:32  0:00:26  0:00:06     0100   131    0     0  100   131      0      4  0:00:32  0:00:27  0:00:05     0100   131    0     0  100   131      0      4  0:00:32  0:00:28  0:00:04     0100   131    0     0  100   131      0      4  0:00:32  0:00:29  0:00:03     0100   131    0     0  100   131      0      4  0:00:32  0:00:30  0:00:02     0100   131    0     0  100   131      0      4  0:00:32  0:00:31  0:00:01     0100   131    0     0  100   131      0      4  0:00:32  0:00:32 --:--:--     0100   131    0     0  100   131      0      3  0:00:43  0:00:33  0:00:10     0100   131    0     0  100   131      0      3  0:00:43  0:00:34  0:00:09     0100   131    0     0  100   131      0      3  0:00:43  0:00:35  0:00:08     0100   131    0     0  100   131      0      3  0:00:43  0:00:36  0:00:07     0100   131    0     0  100   131      0      3  0:00:43  0:00:37  0:00:06     0100   131    0     0  100   131      0      3  0:00:43  0:00:38  0:00:05     0100   131    0     0  100   131      0      3  0:00:43  0:00:39  0:00:04     0100   131    0     0  100   131      0      3  0:00:43  0:00:40  0:00:03     0100   131    0     0  100   131      0      3  0:00:43  0:00:41  0:00:02     0100   131    0     0  100   131      0      3  0:00:43  0:00:42  0:00:01     0100  4301    0  4170  100   131     96      3  0:00:43  0:00:43 --:--:--   878100  4301    0  4170  100   131     96      3  0:00:43  0:00:43 --:--:--  1113
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 43.086538s
-[RESPONSE BODY]:
-Here’s a highly personalized set of exam questions based on the input format and guidelines. Since no specific JSON input was provided, I’ll create a hypothetical example for a student studying "AI Fundamentals" with the following assumed profile:
-
-### Hypothetical Input:
-```json
-{
-  "lessonTitle": "Neural Networks",
-  "studentProfile": {
-    "name": "Alex",
-    "educationLevel": "undergraduate",
-    "learningStyle": "visual",
-    "interests": ["robotics", "gaming", "music"],
-    "strengths": ["programming", "logical reasoning"],
-    "weaknesses": ["statistics", "abstract concepts"],
-    "previousScores": [75, 80, 82],
-    "careerGoals": ["AI engineer", "robotics researcher"],
-    "preferredPace": "moderate",
-    "specialNeeds": [],
-    "languageProficiency": "advanced"
-  },
-  "courseDetails": {
-    "title": "AI Fundamentals",
-    "level": "beginner",
-    "objectives": [
-      "Understand basic AI concepts",
-      "Apply neural networks to simple problems",
-      "Evaluate AI model performance"
-    ],
-    "topics": ["Neural Networks", "Machine Learning", "Ethics in AI"],
-    "prerequisites": ["basic programming", "linear algebra"],
-    "industryRelevance": ["automation", "predictive analytics"],
-    "skillsTargeted": ["problem-solving", "critical thinking"],
-    "assessmentHistory": {
-      "preferredTypes": ["multiple_choice", "application"],
-      "successfulFormats": ["scenario-based", "diagram interpretation"]
-    }
-  },
-  "questionCount": 3
-}
-```
-
-### Output (Personalized Questions):
-```json
-[
-  {
-    "question_id": "NN_001",
-    "question_text": "In a robotics application, a neural network is used to process sensor data for obstacle avoidance. Based on the diagram below (imagine a simple NN architecture with input, hidden, and output layers), which layer would most likely handle raw sensor inputs?",
-    "field_type": "multiple_choice",
-    "options": [
-      "Input layer",
-      "Hidden layer",
-      "Output layer",
-      "All layers equally"
-    ],
-    "correct_answer": "Input layer",
-    "points": 3,
-    "difficulty_level": "Easy",
-    "topic_area": "Neural Networks",
-    "learning_objective": "Understand basic AI concepts"
-  },
-  {
-    "question_id": "NN_002",
-    "question_text": "You're designing a neural network for a game AI that predicts player movements. Given your strength in programming, which activation function would you choose for the output layer if the goal is binary classification (e.g., 'move left' or 'move right')?",
-    "field_type": "multiple_choice",
-    "options": [
-      "ReLU",
-      "Sigmoid",
-      "Tanh",
-      "Linear"
-    ],
-    "correct_answer": "Sigmoid",
-    "points": 5,
-    "difficulty_level": "Medium",
-    "topic_area": "Neural Networks",
-    "learning_objective": "Apply neural networks to simple problems"
-  },
-  {
-    "question_id": "NN_003",
-    "question_text": "A music recommendation system uses a neural network but performs poorly on new genres. Analyze this scenario (considering your career goal in AI engineering): What is the most likely issue and how would you address it?",
-    "field_type": "text",
-    "options": [],
-    "correct_answer": "The model likely suffers from overfitting to training data. Solutions could include: adding more diverse training data, using regularization techniques, or implementing transfer learning.",
-    "points": 7,
-    "difficulty_level": "Hard",
-    "topic_area": "Neural Networks",
-    "learning_objective": "Evaluate AI model performance"
-  }
-]
-```
-
-### Personalization Breakdown:
-1. **Visual Learning**: Diagram reference in Q1 (though placeholder for actual exam).
-2. **Career Alignment**: Robotics (Q1), gaming (Q2), and music (Q3) tie to interests/goals.
-3. **Difficulty Curve**: Progresses from Easy → Hard based on previous scores (~80 average).
-4. **Strengths/Weaknesses**: Programming strength leveraged in Q2; abstract concepts (weakness) scaffolded in Q3 with concrete analysis.
-5. **Assessment History**: Mix of MC (preferred) and text (successful application).
-6. **Language**: Clear but advanced phrasing for "advanced" proficiency.
-
-Let me know if you'd like adjustments or have a specific input to work from!\n==============================
-Testing endpoint: /generate-resources
-Description: Generate resource recommendations.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   170  100    39  100   131  44827   147k --:--:-- --:--:-- --:--:--  166k
-
-[HTTP STATUS]: 500
-[TOTAL TIME]: 0.000870s
-[RESPONSE BODY]:
-Failed to get course generation prompt
-\n==============================
-Testing endpoint: /chat
-Description: Chat with the LLM as a professor.
-Payload:
-{ "title": "AI Fundamentals", "objective": "Discuss AI concepts", "difficulty": "beginner", "education_level": "undergraduate", "agent_role": "professor" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   155    0     0  100   155      0    128  0:00:01  0:00:01 --:--:--   128100   155    0     0  100   155      0     70  0:00:02  0:00:02 --:--:--    70100   155    0     0  100   155      0     48  0:00:03  0:00:03 --:--:--    48100   155    0     0  100   155      0     36  0:00:04  0:00:04 --:--:--    36100   155    0     0  100   155      0     29  0:00:05  0:00:05 --:--:--    29100   155    0     0  100   155      0     24  0:00:06  0:00:06 --:--:--     0100   155    0     0  100   155      0     21  0:00:07  0:00:07 --:--:--     0100   155    0     0  100   155      0     18  0:00:08  0:00:08 --:--:--     0100   155    0     0  100   155      0     16  0:00:09  0:00:09 --:--:--     0100   155    0     0  100   155      0     15  0:00:10  0:00:10 --:--:--     0100   155    0     0  100   155      0     13  0:00:11  0:00:11 --:--:--     0100  1109  100   954  100   155     83     13  0:00:11  0:00:11 --:--:--   229
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 11.376163s
-[RESPONSE BODY]:
-Understood! I’ll act as an expert professor guiding an undergraduate beginner through AI Fundamentals. My responses will be clear, concise, and tailored to the lesson, using examples to simplify concepts. I’ll stay focused on the topic while encouraging questions and critical thinking. If the student strays, I’ll gently steer them back, showing connections where relevant. Let’s begin!  
-
-For example, if the student asks, *"What is machine learning?"* during a lesson on AI basics, I might say:  
-
-"Great question! Machine learning is a subset of AI where systems learn from data to improve tasks without explicit programming. For instance, a spam filter learns to flag emails by analyzing patterns in past data. Today, we’re focusing on broader AI principles—would you like to explore how machine learning fits into those?"  
-
-This keeps the discussion on track while addressing their curiosity. Ready for your student’s first question!\n==============================
-Testing endpoint: /professor-chat
-Description: Chat with the LLM as a professor (dedicated endpoint).
-Payload:
-{ "title": "AI Fundamentals", "objective": "Discuss AI concepts", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   128    0     0  100   128      0    632 --:--:-- --:--:-- --:--:--   630100   128    0     0  100   128      0    106  0:00:01  0:00:01 --:--:--   106100   128    0     0  100   128      0     57  0:00:02  0:00:02 --:--:--    57100   128    0     0  100   128      0     39  0:00:03  0:00:03 --:--:--    39100   128    0     0  100   128      0     30  0:00:04  0:00:04 --:--:--    30100   128    0     0  100   128      0     24  0:00:05  0:00:05 --:--:--     0100   128    0     0  100   128      0     20  0:00:06  0:00:06 --:--:--     0100   128    0     0  100   128      0     17  0:00:07  0:00:07 --:--:--     0100   128    0     0  100   128      0     15  0:00:08  0:00:08 --:--:--     0100   715  100   587  100   128     64     14  0:00:09  0:00:09 --:--:--   120
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 9.079191s
-[RESPONSE BODY]:
-Understood! I’ll act as an expert professor guiding an undergraduate beginner through AI Fundamentals. My responses will be clear, concise, and tailored to the lesson, using examples to break down concepts. I’ll stay focused on the topic while encouraging critical thinking and engagement. If the student strays, I’ll gently redirect them to the current material. Let’s begin!  
-
-What’s your question or thought about today’s AI concepts? For example, we could explore what defines AI, how machine learning works, or why data matters. Let me know where you’d like to start!\n==============================
-Testing endpoint: /librarian-chat
-Description: Chat with the LLM as a librarian (dedicated endpoint).
-Payload:
-{ "title": "AI Fundamentals", "objective": "Find information resources", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   135    0     0  100   135      0    665 --:--:-- --:--:-- --:--:--   665100   135    0     0  100   135      0    111  0:00:01  0:00:01 --:--:--   111100   135    0     0  100   135      0     61  0:00:02  0:00:02 --:--:--    61100   135    0     0  100   135      0     42  0:00:03  0:00:03 --:--:--    42100   135    0     0  100   135      0     32  0:00:04  0:00:04 --:--:--    32100   135    0     0  100   135      0     25  0:00:05  0:00:05 --:--:--     0100   135    0     0  100   135      0     21  0:00:06  0:00:06 --:--:--     0100   135    0     0  100   135      0     18  0:00:07  0:00:07 --:--:--     0100   135    0     0  100   135      0     16  0:00:08  0:00:08 --:--:--     0100   135    0     0  100   135      0     14  0:00:09  0:00:09 --:--:--     0100   135    0     0  100   135      0     13  0:00:10  0:00:10 --:--:--     0100   135    0     0  100   135      0     12  0:00:11  0:00:11 --:--:--     0100   135    0     0  100   135      0     11  0:00:12  0:00:12 --:--:--     0100   135    0     0  100   135      0     10  0:00:13  0:00:13 --:--:--     0100   135    0     0  100   135      0      9  0:00:15  0:00:14  0:00:01     0100   135    0     0  100   135      0      8  0:00:16  0:00:15  0:00:01     0100  1626  100  1491  100   135     91      8  0:00:16  0:00:16 --:--:--   297100  1626  100  1491  100   135     91      8  0:00:16  0:00:16 --:--:--   372
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 16.243971s
-[RESPONSE BODY]:
-Understood! As your librarian, I'll help you navigate the learning materials effectively. Since you're studying AI Fundamentals at a beginner undergraduate level and need to find information resources, here's how I can assist:
-
-1. For core AI concepts, I recommend starting with Chapter 2 of "Artificial Intelligence: A Modern Approach" (Russell & Norvig) which covers intelligent agents and problem-solving approaches. The diagrams on pages 35-42 are particularly helpful for visual learners.
-
-2. The university's online learning platform has a module called "AI Foundations" with interactive tutorials on machine learning basics. Section 3.2 explains neural networks using everyday analogies.
-
-3. If you need practical examples, the "Hands-On Machine Learning" textbook (available as an e-book) has Jupyter notebook exercises in Chapter 1 that demonstrate basic AI principles through Python code.
-
-4. For research skills, the library guide "Finding Technical Information" shows how to:
-   - Use subject-specific keywords in database searches
-   - Evaluate AI research papers
-   - Trace references through citation chains
-
-When you have specific questions:
-- Tell me which concepts you're struggling with
-- Share what resources you've already consulted
-- Let me know if you prefer text, video, or hands-on materials
-
-Would you like me to:
-a) Explain a particular AI concept from the materials
-b) Help locate specific information
-c) Suggest study strategies for this topic
-d) Something else?\n==============================
-Testing endpoint: /examiner-chat
-Description: Chat with the LLM as an examiner (dedicated endpoint).
-Payload:
-{ "title": "AI Fundamentals", "objective": "Quiz the student on AI concepts", "difficulty": "beginner", "education_level": "undergraduate" }
-------------------------------
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   140    0     0  100   140      0    116  0:00:01  0:00:01 --:--:--   116100   140    0     0  100   140      0     63  0:00:02  0:00:02 --:--:--    63100   140    0     0  100   140      0     43  0:00:03  0:00:03 --:--:--    43100   140    0     0  100   140      0     33  0:00:04  0:00:04 --:--:--    33100   140    0     0  100   140      0     26  0:00:05  0:00:05 --:--:--    26100   140    0     0  100   140      0     22  0:00:06  0:00:06 --:--:--     0100   140    0     0  100   140      0     19  0:00:07  0:00:07 --:--:--     0100   140    0     0  100   140      0     17  0:00:08  0:00:08 --:--:--     0100   140    0     0  100   140      0     15  0:00:09  0:00:09 --:--:--     0100   140    0     0  100   140      0     13  0:00:10  0:00:10 --:--:--     0100   140    0     0  100   140      0     12  0:00:11  0:00:11 --:--:--     0100   140    0     0  100   140      0     11  0:00:12  0:00:12 --:--:--     0100   140    0     0  100   140      0     10  0:00:14  0:00:13  0:00:01     0100   140    0     0  100   140      0      9  0:00:15  0:00:14  0:00:01     0100   140    0     0  100   140      0      9  0:00:15  0:00:15 --:--:--     0100   140    0     0  100   140      0      8  0:00:17  0:00:16  0:00:01     0100   140    0     0  100   140      0      8  0:00:17  0:00:17 --:--:--     0100   140    0     0  100   140      0      7  0:00:20  0:00:18  0:00:02     0100   140    0     0  100   140      0      7  0:00:20  0:00:19  0:00:01     0100   140    0     0  100   140      0      6  0:00:23  0:00:20  0:00:03     0100   140    0     0  100   140      0      6  0:00:23  0:00:21  0:00:02     0100  2316    0  2176  100   140     97      6  0:00:23  0:00:22  0:00:01   435100  2316    0  2176  100   140     97      6  0:00:23  0:00:22  0:00:01   544
-
-[HTTP STATUS]: 200
-[TOTAL TIME]: 22.244468s
-[RESPONSE BODY]:
-Understood. I will provide structured, phase-appropriate guidance while maintaining academic integrity. Here's how I would approach each exam phase for an undergraduate beginner in AI Fundamentals:
-
-Pre-exam phase guidance:
-1. Exam format explanation: The exam will likely assess core AI concepts through multiple-choice, short-answer, and problem-solving questions.
-2. Preparation strategies:
-   - Focus on foundational concepts: definitions of AI, machine learning basics, and simple algorithms
-   - Review key terminology and differences between AI approaches
-   - Practice explaining concepts in your own words
-3. Time management:
-   - Allocate time based on question weight
-   - Plan to spend more time on higher-value questions
-   - Leave time for review
-
-During exam response approach:
-1. For question clarification:
-   - I will rephrase unclear instructions without providing hints
-   - Example: If asked "What does this question mean?", I would restate the question wording literally
-2. Time reminders:
-   - Will provide neutral time checks if requested
-   - Example: "You have X minutes remaining, consider allocating time proportionally"
-
-Post-exam support:
-1. Grading explanation:
-   - Will describe typical grading rubrics for similar exams
-   - Explain partial credit policies
-2. Conceptual discussion:
-   - Can explain general AI concepts that appeared
-   - Will not discuss specific answers
-3. Improvement suggestions:
-   - Identify broad areas for development
-   - Suggest practice methods for future preparation
-
-Review phase assistance:
-1. Mistake analysis:
-   - Will help identify conceptual misunderstandings
-   - Guide through correct problem-solving approaches
-2. Study strategies:
-   - Recommend active recall techniques
-   - Suggest creating concept maps
-3. Resource guidance:
-   - Point to foundational AI textbooks
-   - Recommend reputable online learning platforms
-
-For all phases, I will:
-- Maintain neutral, professional tone
-- Focus on learning process rather than specific answers
-- Encourage independent thinking
-- Uphold academic honesty standards
-
-Would you like me to focus on any particular aspect of this framework for your current needs?
