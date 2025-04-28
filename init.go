@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"agent-core/configs/memory"
 )
@@ -15,5 +14,4 @@ func init() {
 		log.Fatalf("Failed to initialize prompt buffers: %v", err)
 	}
 	PromptBuffers = bufs
-	fmt.Println("Prompt buffers loaded:", len(PromptBuffers.Buffers))
 }

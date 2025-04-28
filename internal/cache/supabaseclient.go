@@ -45,12 +45,9 @@ func (c *SupabasePgvectorClient) CacheEmbedding(query string, embedding []float6
 	}
 
 	body, err := json.Marshal(record)
-	if err != nil {
-		return fmt.Errorf("failed to encode embedding record: %w", err)
-	}
+	if err != nil {	}
 
 	url := fmt.Sprintf("%s/rest/v1/%s", c.ApiUrl, c.TableName)
-	fmt.Printf("[Supabase] Inserting embedding. URL: %s\nRequest Body: %s\n", url, string(body))
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -63,13 +60,11 @@ func (c *SupabasePgvectorClient) CacheEmbedding(query string, embedding []float6
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Printf("[Supabase] ERROR sending request: %v\n", err)
 		return fmt.Errorf("failed to send request to Supabase: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	fmt.Printf("[Supabase] Insert response status: %s\nResponse Body: %s\n", resp.Status, string(respBody))
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("Supabase insert failed: %s\nResponse Body: %s\nRequest Body: %s", resp.Status, string(respBody), string(body))

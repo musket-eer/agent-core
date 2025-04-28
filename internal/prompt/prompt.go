@@ -43,6 +43,7 @@ func LoadPrompts() error {
 			endpoint := strings.TrimSuffix(name, filepath.Ext(name))
 			content := string(contentBytes)
 			promptStore[endpoint] = &content
+			fmt.Printf("Loaded prompt for endpoint '%s':", endpoint)
 		}
 	})
 	return loadErr

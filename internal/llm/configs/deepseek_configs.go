@@ -39,7 +39,7 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 	"/chat": {
 		ModelName:   "deepseek-chat",
 		Temperature: 0.9,
-		MaxTokens:   2048,
+		MaxTokens:   200,
 	},
 }
 

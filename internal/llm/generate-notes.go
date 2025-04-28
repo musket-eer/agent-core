@@ -1,98 +1,139 @@
-// Here we implement a Bedrock endpoint to generate notes
 package llm
 
 import (
 	"encoding/json"
-	"agent-core/internal/cache/supabaseclient"
-	"log"
 	"net/http"
+	"strings"
 
-	"agent-core/internal/prompt"
+	"agent-core/internal/llm/configs"
 	"agent-core/internal/embedding"
+	"agent-core/internal/prompt"
+	"agent-core/internal/llm/utils"
+
+	"github.com/google/uuid"
 )
 
+// FrontendPayload expects model, messages, temperature
 
-// SupabaseClient is a global variable to hold the Supabase client instance
-var SupabaseClient *supabaseclient.SupabasePgvectorClient
+// TODO: - We want to maps this one to one with the frontend json
+type NotesPayLoad struct {
+	Messages []Message `json:"messages"`
+}
 
-// Handler for /generate-notes endpoint
+// Response struct for notes
+type NotesResponse struct {
+	ID    string `json:"id"`
+	Notes string `json:"notes"`
+}
+
+// Handler for /generate-notes
 func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
-	embedding.PrintEmbeddingConfig()
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		utils.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Decode request body
-	var req CourseRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	// Decode the flat payload into a struct
+	var notesReq map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&notesReq); err != nil {
+		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// --- Supabase Cache Check ---
-	notesPrompt, err := prompt.GetPrompt("professorNotesPrompt")
+	userMessageBytes, err := json.Marshal(notesReq)
 	if err != nil {
-		log.Printf("Error getting notes generation prompt: %v", err)
-		http.Error(w, "Failed to get notes generation prompt", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to serialize user message", http.StatusInternalServerError)
 		return
 	}
-	combined := struct {
-		Request CourseRequest
-		Prompt  string
-	}{
-		Request: req,
-		Prompt:  promptWithVars(notesPrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
+
+	userMessage := Message{
+		Role:    "user",
+		Content: string(userMessageBytes),
 	}
-	combinedBytes, _ := json.Marshal(combined)
+
+	cfg, ok := configs.GetConfig("/generate-notes")
+	if !ok {
+		utils.WriteJSONError(w, "No config for notes generation", http.StatusInternalServerError)
+		return
+	}
+
+	// Load backend system prompt
+	systemPrompt, err := prompt.GetPrompt("professorNotesPrompt")
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to load notes system prompt", http.StatusInternalServerError)
+		return
+	}
+
+	// Inject system + user messages
+	messages := []Message{
+		{Role: "system", Content: systemPrompt},
+		userMessage,
+	}
+
+	// Generate embedding
+	combinedBytes, _ := json.Marshal(messages)
 	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
 	if err != nil {
-		log.Printf("Embedding error: %v", err)
-		http.Error(w, "Failed to generate embedding", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
 		return
 	}
 	key := string(combinedBytes)
-	
-	var cachedResponse string
-	var hit bool
-	_, cachedResponse, hit, err = SupabaseClient.Check(key, embeddingVec) // use the global SupabaseClient
-	if err != nil {
-		log.Printf("Supabase cache check error: %v", err)
-	}
+
+	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
 	if hit {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(cachedResponse))
 		return
 	}
 
-	// Create prompt input
-	notesPrompt, err = prompt.GetPrompt("professorNotesPrompt")
-	if err != nil {
-		log.Printf("Error getting notes generation prompt: %v", err)
-		http.Error(w, "Failed to get notes generation prompt", http.StatusInternalServerError)
-		return
-	}
-	promptMap := map[string]interface{}{
-		"input": map[string]string{
-			"prompt": promptWithVars(notesPrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
-		},
-	}
-
-	// Call LLM client
-	notesResp, err := llmClient.Call("/generate-notes", promptMap)
-	if err != nil {
-		log.Printf("Error calling LLM client: %v", err)
-		http.Error(w, "Failed to generate notes", http.StatusInternalServerError)
+	// LLM call
+	if llmClient == nil {
+		utils.WriteJSONError(w, "LLM client not initialized", http.StatusInternalServerError)
 		return
 	}
 
-	// --- Supabase Cache Store ---
-	err = supabaseClient.CacheEmbedding(key, embeddingVec, notesResp)
-	if err != nil {
-		log.Printf("Failed to cache embedding in Supabase: %v", err)
+	payload := map[string]interface{}{
+		"model":       cfg.ModelName,
+		"messages":    messages,
+		"temperature": cfg.Temperature,
+		"max_tokens":  cfg.MaxTokens,
 	}
 
+	rawResponse, err := llmClient.Call("/generate-lesson", payload)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to generate lesson", http.StatusInternalServerError)
+		return
+	}
+
+	// Clean response
+	cleaned := strings.TrimSpace(rawResponse)
+	if strings.HasPrefix(cleaned, "```markdown") {
+		cleaned = strings.TrimPrefix(cleaned, "```markdown")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+		cleaned = strings.TrimSpace(cleaned)
+	}
+	if strings.HasPrefix(cleaned, "```") {
+		cleaned = strings.TrimPrefix(cleaned, "```")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+		cleaned = strings.TrimSpace(cleaned)
+	}
+
+	// Wrap final response
+	result := NotesResponse{
+		ID:    uuid.New().String(),
+		Notes: cleaned,
+	}
+
+	finalBytes, err := json.Marshal(result)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to serialize notes", http.StatusInternalServerError)
+		return
+	}
+
+	// Cache
+	_ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
+
+	// Return
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(notesResp))
+	w.Write(finalBytes)
 }

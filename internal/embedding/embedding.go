@@ -22,7 +22,7 @@ var GlobalEmbeddingConfig = EmbeddingConfig{
 func getEmbeddingDimensionFromEnv() int {
 	dim := os.Getenv("EMBEDDING_DIMENSION")
 	if dim == "" {
-		return 5 // Default for testing
+		return 1536 // Default for testing
 	}
 	var d int
 	_, err := fmt.Sscanf(dim, "%d", &d)

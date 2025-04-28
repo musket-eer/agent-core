@@ -27,6 +27,26 @@ test_endpoint() {
 
   echo "[RESPONSE BODY]:" | tee -a "$LOG_FILE"
   cat response.tmp | tee -a "$LOG_FILE"
+
+  # Check API contract compliance
+  expected_key=""
+  case "$endpoint" in
+    "/generate-course") expected_key='"course"' ;;
+    "/generate-lesson") expected_key='"lesson"' ;;
+    "/generate-notes") expected_key='"notes"' ;;
+    "/generate-exams") expected_key='"questions"' ;;
+    "/generate-resources") expected_key='"resources"' ;;
+    "/chat"|"/professor-chat"|"/librarian-chat"|"/examiner-chat") expected_key='"message"' ;;
+  esac
+
+  if grep -q '"error"' response.tmp; then
+    echo "[CONTRACT CHECK]: ERROR response with 'error' field present ✅" | tee -a "$LOG_FILE"
+  elif [ -n "$expected_key" ] && grep -q $expected_key response.tmp; then
+    echo "[CONTRACT CHECK]: SUCCESS response with $expected_key present ✅" | tee -a "$LOG_FILE"
+  else
+    echo "[CONTRACT CHECK]: ❌ Response does NOT match contract (missing expected key)" | tee -a "$LOG_FILE"
+  fi
+
   rm response.tmp
 }
 

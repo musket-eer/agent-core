@@ -2,123 +2,149 @@ package llm
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
-	"os"
+	"strings"
 
-	"agent-core/internal/prompt"
-	"agent-core/internal/cache/supabaseclient"
+	"agent-core/internal/llm/configs"
 	"agent-core/internal/embedding"
+	"agent-core/internal/prompt"
+	"agent-core/internal/llm/utils"
+
+	"github.com/google/uuid"
 )
 
-// CourseRequest defines the input structure used across all generation endpoints
-type LibraryRequestExpectation struct {
-	Title          string `json:"title"`
-	Objective      string `json:"objective"`
-	Difficulty     string `json:"difficulty"`
-	EducationLevel string `json:"education_level"`
+type ResourcesPayload struct {
+	Messages []Message `json:"messages"`
 }
 
-// Handler for /generate-resources endpoint
+// Resource object
+type Resource struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Link        string `json:"link"`
+	ID          string `json:"id"`
+}
+
+// ResourcesResponse wraps the final return
+type ResourcesResponse struct {
+	Resources []Resource `json:"resources"`
+}
+
+// Handler for /generate-study-resources
 func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
-	embedding.PrintEmbeddingConfig()
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		utils.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Decode request body
-	var req CourseRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	var req ResourcesPayload
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// --- Supabase Cache Check ---
-	resourcePrompt, err := prompt.GetPrompt("librarianResourcesPrompt")
-	if err != nil {
-		log.Printf("Error getting course generation prompt: %v", err)
-		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)
+	if len(req.Messages) < 2 {
+		utils.WriteJSONError(w, "Messages array must include resource context.", http.StatusBadRequest)
 		return
 	}
-	combined := struct {
-		Request CourseRequest
-		Prompt  string
-	}{
-		Request: req,
-		Prompt:  promptWithVars(resourcePrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
+
+	userMessage := req.Messages[1]
+
+	cfg, ok := configs.GetConfig("/generate-resources")
+	if !ok {
+		utils.WriteJSONError(w, "No config for resource generation", http.StatusInternalServerError)
+		return
 	}
-	combinedBytes, _ := json.Marshal(combined)
+
+	systemPrompt, err := prompt.GetPrompt("librarianResourcesPrompt")
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to load resource system prompt", http.StatusInternalServerError)
+		return
+	}
+
+	messages := []Message{
+		{Role: "system", Content: systemPrompt},
+		userMessage,
+	}
+
+	combinedBytes, _ := json.Marshal(messages)
 	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
 	if err != nil {
-		log.Printf("Embedding error: %v", err)
-		http.Error(w, "Failed to generate embedding", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
 		return
 	}
 	key := string(combinedBytes)
-	supabaseClient := &supabaseclient.SupabasePgvectorClient{
-		ApiUrl:    os.Getenv("SUPABASE_API_URL"),
-		ApiKey:    os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
-		TableName: os.Getenv("SUPABASE_TABLE_NAME"),
-	}
-	var cachedResponse string
-	var hit bool
-	_, cachedResponse, hit, err = supabaseClient.Check(key, embeddingVec)
-	if err != nil {
-		log.Printf("Supabase cache check error: %v", err)
-	}
+
+	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
 	if hit {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(cachedResponse))
 		return
 	}
 
-	// Create prompt input
-	resourcePrompt, err = prompt.GetPrompt("librarianResourcesPrompt")
-	if err != nil {
-		log.Printf("Error getting course generation prompt: %v", err)
-		http.Error(w, "Failed to get course generation prompt", http.StatusInternalServerError)
-		return
-	}
-	promptMap := map[string]interface{}{
-		"input": map[string]string{
-			"prompt": promptWithVars(resourcePrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
-		},
-	}
-
-	// Call LLM client
-	resourcesResp, err := llmClient.Call("/generate-resources", promptMap)
-	if err != nil {
-		log.Printf("Error calling LLM client: %v", err)
-		http.Error(w, "Failed to generate resources", http.StatusInternalServerError)
+	if llmClient == nil {
+		utils.WriteJSONError(w, "LLM client not initialized", http.StatusInternalServerError)
 		return
 	}
 
+	payload := map[string]interface{}{
+		"model":       cfg.ModelName,
+		"messages":    messages,
+		"temperature": cfg.Temperature,
+		"max_tokens":  cfg.MaxTokens,
+	}
+
+	rawResponse, err := llmClient.Call("/generate-resources", payload)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to generate study resources", http.StatusInternalServerError)
+		return
+	}
+
+	cleaned := strings.TrimSpace(rawResponse)
+	if strings.HasPrefix(cleaned, "```json") {
+		cleaned = strings.TrimPrefix(cleaned, "```json")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+		cleaned = strings.TrimSpace(cleaned)
+	}
+	if strings.HasPrefix(cleaned, "```") {
+		cleaned = strings.TrimPrefix(cleaned, "```")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+		cleaned = strings.TrimSpace(cleaned)
+	}
+
+	// Parse LLM output
+	var parsed []map[string]interface{}
+	if err := json.Unmarshal([]byte(cleaned), &parsed); err != nil {
+		utils.WriteJSONError(w, "Failed to parse study resources response", http.StatusBadRequest)
+		return
+	}
+
+	// Map parsed into Resource struct
+	resources := make([]Resource, 0, len(parsed))
+	for _, item := range parsed {
+		res := Resource{
+			Title:       item["title"].(string),
+			Description: item["description"].(string),
+			Link:        item["link"].(string),
+			ID:          uuid.New().String(),
+		}
+		resources = append(resources, res)
+	}
+
+	final := ResourcesResponse{
+		Resources: resources,
+	}
+
+	finalBytes, err := json.Marshal(final)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to serialize resources", http.StatusInternalServerError)
+		return
+	}
+
+	// Cache
+	_ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
+
+	// Return
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(resourcesResp))
-	prompt := map[string]interface{}{
-		"prompt": promptWithVars(resourcePrompt, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
-	}
-
-	// Call LLM client
-	resourcesResp, err = llmClient.Call("generate-resources", prompt)
-	if err != nil {
-		log.Printf("Error calling LLM client: %v", err)
-		http.Error(w, "Failed to generate resources", http.StatusInternalServerError)
-		return
-	}
-
-	// Optional: Save to cache...
-	// saveToCache(req, resourcesResp)
-
-	// Return Bedrock response
-	// --- Supabase Cache Store ---
-	err = supabaseClient.CacheEmbedding(key, embeddingVec, resourcesResp)
-	if err != nil {
-		log.Printf("Failed to cache embedding in Supabase: %v", err)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(resourcesResp))
+	w.Write(finalBytes)
 }

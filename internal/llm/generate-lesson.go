@@ -2,100 +2,193 @@ package llm
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 
-	"agent-core/internal/prompt"
 	"agent-core/internal/embedding"
+	"agent-core/internal/llm/configs"
+	"agent-core/internal/prompt"
+	"agent-core/internal/llm/utils"
+
+	"github.com/google/uuid"
+
 )
 
-// LessonRequestExpectation defines the expected input structure for lesson generation
-type LessonRequestExpectation struct {
-	Title          string `json:"title"`
-	Objective      string `json:"objective"`
-	Difficulty     string `json:"difficulty"`
-	EducationLevel string `json:"education_level"`
+// FrontendPayload represents the incoming structure
+type LessonRequest struct {
+	LessonTitle       string   `json:"lesson_title"`
+	LessonDescription string   `json:"lesson_description"`
+	LessonObjectives  []string `json:"lesson_objectives"`
+	LessonSize        int      `json:"lesson_size"`
+	EducationLevel    string   `json:"education_level"`
+	Interests         []string `json:"interests"`
+	CareerGoals       string   `json:"career_goals"`
 }
 
-// CourseRequest is defined in generate-course.go and reused here.
 
 
-// Handler for /generate-lesson endpoint
+type LessonMetadata struct {
+	Title      string   `json:"title"`
+	Objectives []string `json:"objectives"`
+	Duration   string   `json:"duration"`
+	Difficulty string   `json:"difficulty"`
+}
+
+type Activity struct {
+	ID     string `json:"id"`
+	Leader string `json:"leader"`
+	Title  string `json:"title"`
+}
+
+type LessonPlan struct {
+	LessonMetadata LessonMetadata `json:"lessonMetadata"`
+	Activities     []Activity      `json:"activities"`
+}
+
+// POST /generate-lesson
 func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
-	embedding.PrintEmbeddingConfig()
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		utils.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Decode request body
-	var req CourseRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	var lessonReq LessonRequest
+	if err := json.NewDecoder(r.Body).Decode(&lessonReq); err != nil {
+		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// --- Supabase Cache Check ---
-	promptStr, err := prompt.GetPrompt("lessonSequencePrompt")
-	if err != nil {
-		http.Error(w, "Failed to get prompt: "+err.Error(), http.StatusInternalServerError)
+	cfg, ok := configs.GetConfig("/generate-lesson")
+	if !ok {
+		utils.WriteJSONError(w, "No config for lesson generation", http.StatusInternalServerError)
 		return
 	}
-	combined := struct {
-		Request CourseRequest
-		Prompt  string
-	}{
-		Request: req,
-		Prompt:  promptWithVars(promptStr, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
+
+	systemPrompt, err := prompt.GetPrompt("lessonSequencePrompt")
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to load system prompt", http.StatusInternalServerError)
+		return
 	}
-	combinedBytes, _ := json.Marshal(combined)
+
+	lessonReqJson, err := json.Marshal(lessonReq)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to serialize lesson request", http.StatusInternalServerError)
+		return
+	}
+
+	messages := []Message{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: string(lessonReqJson)},
+	}
+
+	// Cache Key
+	combinedBytes, _ := json.Marshal(messages)
 	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
 	if err != nil {
-		log.Printf("Embedding error: %v", err)
-		http.Error(w, "Failed to generate embedding", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
 		return
 	}
-	key := string(combinedBytes)
-	
-	var cachedResponse string
-	var hit bool
-	_, cachedResponse, hit, err = SupabaseClient.Check(key, embeddingVec) // use the global SupabaseClient
-	if err != nil {
-		log.Printf("Supabase cache check error: %v", err)
-	}
+
+	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
 	if hit {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(cachedResponse))
 		return
 	}
 
-	// Create prompt input
-	promptStr, err = prompt.GetPrompt("lessonSequencePrompt")
-	if err != nil {
-		http.Error(w, "Failed to get prompt: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	promptMap := map[string]interface{}{
-		"input": map[string]string{
-			"prompt": promptWithVars(promptStr, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
-		},
-	}
-
-	// Call LLM client
-	lessonResp, err := llmClient.Call("/generate-lesson", promptMap)
-	if err != nil {
-		log.Printf("Error calling LLM client: %v", err)
-		http.Error(w, "Failed to generate lesson", http.StatusInternalServerError)
+	if llmClient == nil {
+		utils.WriteJSONError(w, "LLM client not initialized", http.StatusInternalServerError)
 		return
 	}
 
-	// --- Supabase Cache Store ---
-	err = supabaseClient.CacheEmbedding(key, embeddingVec, lessonResp)
+	// Transform the incoming flat LessonRequest into a single prompt string for Deepseek
+	lessonReqJson, err = json.Marshal(lessonReq)
 	if err != nil {
-		log.Printf("Failed to cache embedding in Supabase: %v", err)
+		utils.WriteJSONError(w, "Failed to serialize lesson request", http.StatusInternalServerError)
+		return
+	}
+	promptStr := systemPrompt + "\n" + string(lessonReqJson)
+	payload := map[string]interface{}{
+		"model": cfg.ModelName,
+		"input": map[string]string{"prompt": promptStr},
+		"temperature": cfg.Temperature,
+		"max_tokens":  cfg.MaxTokens,
+	}
+
+	rawResponse, err := llmClient.Call("/generate-lesson", payload)
+	if err != nil {
+		fmt.Printf("[generate-lesson] LLM client error: %v", err)
+		utils.WriteJSONError(w, "Failed to generate lesson", http.StatusInternalServerError)
+		return
+	}
+
+	cleaned := utils.ExtractJsonFromCodeBlock(rawResponse)
+
+	fmt.Printf("[generate-lesson] Raw LLM response before parsing: %s\n", cleaned)
+
+	// Parse lesson data using the utility function for raw LLM output
+	parsed := utils.ParseLessonData(cleaned)
+
+	// Map into structured LessonPlan
+	lessonMetadataRaw := parsed["lessonMetadata"].(map[string]interface{})
+	activitiesRaw := parsed["activities"].([]map[string]string)
+
+	metadata := LessonMetadata{
+		Title:      lessonMetadataRaw["title"].(string),
+		Objectives: toStringArray(lessonMetadataRaw["objectives"]),
+		Duration:   "",
+		Difficulty: "",
+	}
+	if v, ok := lessonMetadataRaw["duration"]; ok {
+		metadata.Duration = v.(string)
+	}
+	if v, ok := lessonMetadataRaw["difficulty"]; ok {
+		metadata.Difficulty = v.(string)
+	}
+
+	activities := []Activity{}
+	for _, act := range activitiesRaw {
+		id := act["id"]
+		if id == "" {
+			id = uuid.New().String()
+		}
+		activities = append(activities, Activity{
+			ID:     id,
+			Leader: act["leader"],
+			Title:  act["title"],
+		})
+	}
+
+	lesson := LessonPlan{
+		LessonMetadata: metadata,
+		Activities:     activities,
+	}
+
+	final := map[string]interface{}{
+		"lessonPlan": lesson,
+	}
+
+	finalBytes, err := json.Marshal(final)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to serialize lesson", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(lessonResp))
+	w.Write(finalBytes)
+}
+
+// helper
+func toStringArray(raw interface{}) []string {
+	items, ok := raw.([]interface{})
+	if !ok {
+		return []string{}
+	}
+	strs := make([]string, 0, len(items))
+	for _, i := range items {
+		if s, ok := i.(string); ok {
+			strs = append(strs, s)
+		}
+	}
+	return strs
 }

@@ -1,7 +1,3 @@
-Here is the updated prompt in **.txt** format for easy copying:  
-
----
-
 **Lesson Sequence Generation Prompt**  
 
 Role & Objective  

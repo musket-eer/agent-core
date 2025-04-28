@@ -1,92 +1,135 @@
-// Here we implement a Bedrock endpoint to generate exams
 package llm
 
 import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
-	"agent-core/internal/prompt"
+	"agent-core/internal/llm/configs"
 	"agent-core/internal/embedding"
+	"github.com/google/uuid"
+	"agent-core/internal/llm/utils"
 )
 
+// GenerateExamRequest expects messages
+type GenerateExamRequest struct {
+	Messages []Message `json:"messages"`
+}
 
-// Handler for /generate-exams endpoint
+// ExamQuestion represents a single exam question
+type ExamQuestion struct {
+	QuestionText string   `json:"question_text"`
+	Options      []string `json:"options"`
+	QuestionID   string   `json:"question_id"`
+}
+
+// GenerateExamsHandler - POST /generate-exams
 func GenerateExamsHandler(w http.ResponseWriter, r *http.Request) {
-	embedding.PrintEmbeddingConfig()
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		utils.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Decode request body
-	var req CourseRequest
+	var req GenerateExamRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if err != nil || len(req.Messages) == 0 {
+		utils.WriteJSONError(w, "Invalid or missing messages array", http.StatusBadRequest)
 		return
 	}
 
-	// --- Supabase Cache Check ---
-	promptStr, err := prompt.GetPrompt("examGenerationPrompt")
-	if err != nil {
-		http.Error(w, "Failed to load exam generation prompt: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	combined := struct {
-		Request CourseRequest
-		Prompt  string
-	}{
-		Request: req,
-		Prompt:  promptWithVars(promptStr, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
-	}
-	combinedBytes, _ := json.Marshal(combined)
+	// --- Embed input for caching ---
+	combinedBytes, _ := json.Marshal(req.Messages)
 	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
 	if err != nil {
-		log.Printf("Embedding error: %v", err)
-		http.Error(w, "Failed to generate embedding", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
 		return
 	}
 	key := string(combinedBytes)
-	
-	var cachedResponse string
-	var hit bool
-	_, cachedResponse, hit, err = SupabaseClient.Check(key, embeddingVec) // use the global SupabaseClient
+
+	cachedResponse, _, hit, err := supabaseClient.Check(embeddingVec)
 	if err != nil {
-		log.Printf("Supabase cache check error: %v", err)
 	}
 	if hit {
+		log.Printf("[generate-exams] Cache hit. Responding with cached data: %s", cachedResponse)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(cachedResponse))
 		return
 	}
 
-	// Create prompt input
-	promptStr, err = prompt.GetPrompt("examGenerationPrompt")
-	if err != nil {
-		http.Error(w, "Failed to load exam generation prompt: "+err.Error(), http.StatusInternalServerError)
+	// --- Prepare model payload ---
+	cfg, ok := configs.GetConfig("/generate-exams")
+	if !ok {
+		utils.WriteJSONError(w, "No config for exam generation", http.StatusInternalServerError)
 		return
-	}
-	prompt := map[string]interface{}{
-		"input": map[string]string{
-			"prompt": promptWithVars(promptStr, req.Title, req.Objective, req.EducationLevel, req.Difficulty),
-		},
 	}
 
-	// Call LLM client
-	examResp, err := llmClient.Call("/generate-exams", prompt)
+	// Inject **exam generation formatting rules** (system message)
+	systemMsg := Message{
+		Role: "system",
+		Content: `Generate exam questions in JSON format:
+[
+  {
+    "question_text": "What is the main concept of...",
+    "options": ["Option A", "Option B", "Option C", "Option D"]
+  }
+]
+Respond with pure JSON — no extra text.`,
+	}
+
+	messages := append(req.Messages, systemMsg)
+
+	payload := map[string]interface{}{
+		"model":       cfg.ModelName,
+		"messages":    messages,
+		"temperature": cfg.Temperature,
+		"max_tokens":  cfg.MaxTokens,
+	}
+
+	// --- LLM Call ---
+	response, err := llmClient.Call("/generate-exams", payload)
 	if err != nil {
-		log.Printf("Error calling LLM client: %v", err)
-		http.Error(w, "Failed to generate exams", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to generate exams", http.StatusInternalServerError)
 		return
 	}
+
+	// --- Parse response ---
+	var rawQuestions []struct {
+		QuestionText string   `json:"question_text"`
+		Options      []string `json:"options"`
+	}
+	err = json.Unmarshal([]byte(response), &rawQuestions)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to parse exam JSON", http.StatusBadRequest)
+		return
+	}
+
+	// --- Post-process ---
+	var questions []ExamQuestion
+	for _, q := range rawQuestions {
+		questions = append(questions, ExamQuestion{
+			QuestionText: q.QuestionText,
+			Options:      q.Options,
+			QuestionID:   uuid.New().String(),
+		})
+	}
+
+	final := map[string]interface{}{
+		"id":         uuid.New().String(),
+		"questions":  questions,
+		"createdAt":  time.Now().Format(time.RFC3339),
+		"updatedAt":  time.Now().Format(time.RFC3339),
+	}
+
+	finalBytes, _ := json.Marshal(final)
 
 	// --- Supabase Cache Store ---
-	err = supabaseClient.CacheEmbedding(key, embeddingVec, examResp)
+	err = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
 	if err != nil {
-		log.Printf("Failed to cache embedding in Supabase: %v", err)
 	}
 
+	// --- Respond ---
+	log.Printf("[generate-exams] LLM response sent to frontend: %s", string(finalBytes))
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(examResp))
+	w.Write(finalBytes)
 }
