@@ -2,6 +2,8 @@ package llm
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -17,8 +19,19 @@ import (
 
 // TODO: - We want to maps this one to one with the frontend json
 type NotesPayLoad struct {
-	Messages []Message `json:"messages"`
+	LessonTitle         string   `json:"lessonTitle"`
+	StudentProfile StudentProfile  `json:"studentProfile"`
+	CourseUnit     CourseUnit      `json:"courseUnit"`
 }
+
+type StudentProfile struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	EducationLevel string `json:"educationLevel"`
+	Interests []string `json:"interests"`
+	CareerGoals string `json:"careerGoals"`
+}
+
 
 // Response struct for notes
 type NotesResponse struct {
@@ -33,41 +46,55 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decode the flat payload into a struct
-	var notesReq map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&notesReq); err != nil {
-		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
+	// Decode the payload into the NotesPayLoad struct
+	var notesReq NotesPayLoad
+	var rawBodyBytes []byte
+	r.Body = http.MaxBytesReader(w, r.Body, 1048576) // limit to 1MB
+	rawBodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		fmt.Printf("[generate-notes] Error reading request body: %v\n", err)
+		utils.WriteJSONError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
+	fmt.Printf("[generate-notes] Incoming request body: %s\n", string(rawBodyBytes))
+	// Need to decode again since we've read the body
+	err = json.Unmarshal(rawBodyBytes, &notesReq)
+	if err != nil {
+		fmt.Printf("[generate-notes] Error decoding request body: %v\n", err)
+		utils.WriteJSONError(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	fmt.Printf("[generate-notes] Decoded notesReq: %+v\n", notesReq)
 
 	userMessageBytes, err := json.Marshal(notesReq)
 	if err != nil {
+		fmt.Printf("[generate-notes] Failed to serialize user message: %v\n", err)
 		utils.WriteJSONError(w, "Failed to serialize user message", http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("[generate-notes] userMessageBytes: %s\n", string(userMessageBytes))
 
-	userMessage := Message{
-		Role:    "user",
-		Content: string(userMessageBytes),
-	}
-
-	cfg, ok := configs.GetConfig("/generate-notes")
+	cfg, ok := configs.GetDeepseekConfig("/generate-notes")
 	if !ok {
+		fmt.Println("[generate-notes] No config for notes generation!")
 		utils.WriteJSONError(w, "No config for notes generation", http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("[generate-notes] Deepseek config: %+v\n", cfg)
 
 	// Load backend system prompt
 	systemPrompt, err := prompt.GetPrompt("professorNotesPrompt")
 	if err != nil {
+		fmt.Printf("[generate-notes] Failed to load notes system prompt: %v\n", err)
 		utils.WriteJSONError(w, "Failed to load notes system prompt", http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("[generate-notes] Loaded systemPrompt: %s\n", systemPrompt)
 
 	// Inject system + user messages
 	messages := []Message{
 		{Role: "system", Content: systemPrompt},
-		userMessage,
+		{Role: "user", Content: string(userMessageBytes)},
 	}
 
 	// Generate embedding
@@ -77,8 +104,7 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
 		return
 	}
-	key := string(combinedBytes)
-
+	// key := string(combinedBytes)
 	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
 	if hit {
 		w.Header().Set("Content-Type", "application/json")
@@ -86,22 +112,29 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+
 	// LLM call
 	if llmClient == nil {
 		utils.WriteJSONError(w, "LLM client not initialized", http.StatusInternalServerError)
 		return
 	}
 
+	promptStr := systemPrompt + "\n" + string(userMessageBytes)
+fmt.Printf("[generate-notes] promptStr: %s\n", promptStr)
 	payload := map[string]interface{}{
-		"model":       cfg.ModelName,
-		"messages":    messages,
-		"temperature": cfg.Temperature,
-		"max_tokens":  cfg.MaxTokens,
+		"modelName": cfg.ModelName,
+		"input": map[string]string{
+			"prompt": promptStr,
+		},
 	}
 
-	rawResponse, err := llmClient.Call("/generate-lesson", payload)
+	// Log the payload being sent to LLM
+	payloadBytes, _ := json.MarshalIndent(payload, "", "  ")
+	fmt.Printf("[generate-notes] Payload to LLM: %s\n", string(payloadBytes))
+	rawResponse, err := llmClient.Call("/generate-notes", payload)
+	fmt.Printf("Raw response show for testing........: %v\n", rawResponse)
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to generate lesson", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to generate notes", http.StatusInternalServerError)
 		return
 	}
 
@@ -130,8 +163,8 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache
-	_ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
+	// Cache (disabled)
+	// _ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
 
 	// Return
 	w.Header().Set("Content-Type", "application/json")

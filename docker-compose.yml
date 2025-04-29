@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  agent-core:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DEEPSEEK_URL=${DEEPSEEK_URL}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    volumes:
+      - ./internal/llm/configs:/root/internal/llm/configs
+      - .env:/root/.env
+    restart: unless-stopped

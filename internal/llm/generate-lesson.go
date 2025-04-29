@@ -53,20 +53,27 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var lessonReq LessonRequest
+	fmt.Printf("[generate-lesson] Incoming request: %+v\n", lessonReq)
 	if err := json.NewDecoder(r.Body).Decode(&lessonReq); err != nil {
+		fmt.Printf("[generate-lesson] JSON decode error: %v\n", err)
 		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
+		fmt.Printf("[generate-lesson] Invalid request body: %v\n", err)
 		return
 	}
 
-	cfg, ok := configs.GetConfig("/generate-lesson")
+	cfg, ok := configs.GetDeepseekConfig("/generate-lesson")
 	if !ok {
-		utils.WriteJSONError(w, "No config for lesson generation", http.StatusInternalServerError)
+		fmt.Printf("[generate-lesson] No config found for /generate-lesson\n")
+		utils.WriteJSONError(w, "No config for generation", http.StatusInternalServerError)
+		fmt.Printf("[generate-lesson] No config found for /generate-lesson\n")
 		return
 	}
 
 	systemPrompt, err := prompt.GetPrompt("lessonSequencePrompt")
 	if err != nil {
+		fmt.Printf("[generate-lesson] Failed to load system prompt: %v\n", err)
 		utils.WriteJSONError(w, "Failed to load system prompt", http.StatusInternalServerError)
+		fmt.Printf("[generate-lesson] Failed to load system prompt: %v\n", err)
 		return
 	}
 
@@ -104,6 +111,7 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	// Transform the incoming flat LessonRequest into a single prompt string for Deepseek
 	lessonReqJson, err = json.Marshal(lessonReq)
 	if err != nil {
+		fmt.Printf("[generate-lesson] Failed to serialize lesson request: %v\n", err)
 		utils.WriteJSONError(w, "Failed to serialize lesson request", http.StatusInternalServerError)
 		return
 	}
@@ -114,10 +122,11 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 		"temperature": cfg.Temperature,
 		"max_tokens":  cfg.MaxTokens,
 	}
+	fmt.Printf("[generate-lesson] Payload for LLM: %+v\n", payload)
 
 	rawResponse, err := llmClient.Call("/generate-lesson", payload)
 	if err != nil {
-		fmt.Printf("[generate-lesson] LLM client error: %v", err)
+		fmt.Printf("[generate-lesson] LLM client error: %v\n", err)
 		utils.WriteJSONError(w, "Failed to generate lesson", http.StatusInternalServerError)
 		return
 	}

@@ -47,8 +47,29 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	type Course struct {
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		Difficulty  string   `json:"difficulty"`
+		TotalDuration int          `json:"totalDuration"`
+		WeeklyHours         int          `json:"weeklyHours"`
+		Prerequisites       []string     `json:"prerequisites"`
+		LearningObjectives  []string     `json:"learningObjectives"`
+		Units               []CourseUnit `json:"units"`
+	}
+
+	type ProfileData struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	type CoursePayLoad struct {
+		Course Course `json:"course"`
+		ProfileData ProfileData `json:"profileData"`
+	}
+
 	// Parse frontend payload (ignore model, temperature, etc.)
-	var req map[string]interface{}
+	var req CoursePayLoad
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -63,9 +84,10 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 
 	// --- Combine user content and system prompt
 	userMessage := map[string]interface{}{
-		"course": req["course"],
-		"profileData": req["profileData"],
+		"course":      req.Course,
+		"profileData": req.ProfileData,
 	}
+
 	userMessageJson, _ := json.Marshal(userMessage)
 	fullMessages := []Message{
 		{Role: "system", Content: systemPrompt},
@@ -86,7 +108,7 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key := string(combinedBytes)
+	// key := string(combinedBytes)
 
 	// --- Check Supabase cache
 	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
@@ -139,8 +161,8 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Cache final response
-	_ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
+	// --- Cache final response (disabled)
+	// _ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
 
 	// --- Send response
 	w.Header().Set("Content-Type", "application/json")

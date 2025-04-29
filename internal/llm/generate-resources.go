@@ -73,7 +73,7 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
 		return
 	}
-	key := string(combinedBytes)
+	// key := string(combinedBytes)
 
 	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
 	if hit {
@@ -141,8 +141,8 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache
-	_ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
+	// Cache (disabled)
+	// _ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
 
 	// Return
 	w.Header().Set("Content-Type", "application/json")

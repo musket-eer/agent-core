@@ -88,4 +88,4 @@ Ensure the sequence follows a logical learning flow:
 - **Do not return JSON or Markdown—only structured plain text** as per the format above.  
 - **DO NOT replicate the example output verbatim—only use its structure.**
 
-Note:(For future updates) We don't have exam processing capabilities so only limit the segments Professor and Librarian. No Examiner.
+Note:(For future updates) We don't have exam and Library processing capabilities so only limit the segments for Professor. No Examiner. No Librarian

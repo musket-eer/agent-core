@@ -45,7 +45,7 @@ func GenerateExamsHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
 		return
 	}
-	key := string(combinedBytes)
+	// key := string(combinedBytes)
 
 	cachedResponse, _, hit, err := supabaseClient.Check(embeddingVec)
 	if err != nil {
@@ -123,10 +123,10 @@ Respond with pure JSON — no extra text.`,
 
 	finalBytes, _ := json.Marshal(final)
 
-	// --- Supabase Cache Store ---
-	err = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
-	if err != nil {
-	}
+	// --- Supabase Cache Store (disabled) ---
+	// err = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
+	// if err != nil {
+	// }
 
 	// --- Respond ---
 	log.Printf("[generate-exams] LLM response sent to frontend: %s", string(finalBytes))
