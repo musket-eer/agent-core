@@ -129,7 +129,7 @@ Respond with pure JSON — no extra text.`,
 	// }
 
 	// --- Respond ---
-	log.Printf("[generate-exams] LLM response sent to frontend: %s", string(finalBytes))
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)
 }

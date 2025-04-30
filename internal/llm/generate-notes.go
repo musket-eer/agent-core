@@ -2,7 +2,6 @@ package llm
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -52,44 +51,35 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576) // limit to 1MB
 	rawBodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		fmt.Printf("[generate-notes] Error reading request body: %v\n", err)
+	
 		utils.WriteJSONError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("[generate-notes] Incoming request body: %s\n", string(rawBodyBytes))
 	// Need to decode again since we've read the body
 	err = json.Unmarshal(rawBodyBytes, &notesReq)
 	if err != nil {
-		fmt.Printf("[generate-notes] Error decoding request body: %v\n", err)
 		utils.WriteJSONError(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("[generate-notes] Decoded notesReq: %+v\n", notesReq)
 
 	userMessageBytes, err := json.Marshal(notesReq)
 	if err != nil {
-		fmt.Printf("[generate-notes] Failed to serialize user message: %v\n", err)
 		utils.WriteJSONError(w, "Failed to serialize user message", http.StatusInternalServerError)
 		return
 	}
-	fmt.Printf("[generate-notes] userMessageBytes: %s\n", string(userMessageBytes))
 
 	cfg, ok := configs.GetDeepseekConfig("/generate-notes")
 	if !ok {
-		fmt.Println("[generate-notes] No config for notes generation!")
 		utils.WriteJSONError(w, "No config for notes generation", http.StatusInternalServerError)
 		return
 	}
-	fmt.Printf("[generate-notes] Deepseek config: %+v\n", cfg)
 
 	// Load backend system prompt
 	systemPrompt, err := prompt.GetPrompt("professorNotesPrompt")
 	if err != nil {
-		fmt.Printf("[generate-notes] Failed to load notes system prompt: %v\n", err)
 		utils.WriteJSONError(w, "Failed to load notes system prompt", http.StatusInternalServerError)
 		return
 	}
-	fmt.Printf("[generate-notes] Loaded systemPrompt: %s\n", systemPrompt)
 
 	// Inject system + user messages
 	messages := []Message{
@@ -120,7 +110,6 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	promptStr := systemPrompt + "\n" + string(userMessageBytes)
-fmt.Printf("[generate-notes] promptStr: %s\n", promptStr)
 	payload := map[string]interface{}{
 		"modelName": cfg.ModelName,
 		"input": map[string]string{
@@ -129,10 +118,7 @@ fmt.Printf("[generate-notes] promptStr: %s\n", promptStr)
 	}
 
 	// Log the payload being sent to LLM
-	payloadBytes, _ := json.MarshalIndent(payload, "", "  ")
-	fmt.Printf("[generate-notes] Payload to LLM: %s\n", string(payloadBytes))
 	rawResponse, err := llmClient.Call("/generate-notes", payload)
-	fmt.Printf("Raw response show for testing........: %v\n", rawResponse)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to generate notes", http.StatusInternalServerError)
 		return

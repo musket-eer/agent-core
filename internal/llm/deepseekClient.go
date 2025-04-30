@@ -26,7 +26,7 @@ func NewDeepseekClient(apiKey, baseURL string) *DeepseekClient {
 // Call implements the LLMClient interface for chat completions
 func (c *DeepseekClient) Call(endpoint string, params map[string]interface{}) (string, error) {
 	config, ok := configs.GetDeepseekConfig(endpoint)
-	fmt.Println("Deepseek config:", config)
+
 	if !ok {
 		return "", fmt.Errorf("no Deepseek config for endpoint: %s", endpoint)
 	}

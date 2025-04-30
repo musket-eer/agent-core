@@ -3,62 +3,116 @@ package llm
 
 import (
 	"encoding/json"
+	"io"
+	"log"
 	"net/http"
+	"strings"
 
-	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
+	"agent-core/internal/prompt"
 )
 
-// Import agent_roles.go
-// (Go automatically recognizes files in the same package, so types are available)
-
-// GenerateCourseRequest extends CourseRequest to include the agent role
-// (If CourseRequest is used elsewhere, this is a superset.)
 type ChatAgentRequest struct {
-	Title          string `json:"title"`
+	Title          string `json:"lessonTitle"`
 	Objective      string `json:"objective"`
 	Difficulty     string `json:"difficulty"`
 	EducationLevel string `json:"education_level"`
 	AgentRole      string `json:"agent_role"`
+	ActivityId     string `json:"activityId"`
+	StudentMessage string `json:"studentMessage"`
+	StudentProfile StudentProfile `json:"studentProfile"`
+	CourseUnit     CourseUnit `json:"courseUnit"`
+	Notes          interface{} `json:"notes"`
+	ChatHistory    []interface{} `json:"chatHistory"`
+	LeaderRole     string `json:"leader"`
 }
 
 // Generic chat handler for a specific agent role and prompt
 func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[CHAT] Handler called")
 		if r.Method != http.MethodPost {
+			log.Printf("[CHAT] Early return: Method not allowed")
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		// Decode request body
-		var req ChatAgentRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
+		// Read raw request body
+		r.Body = http.MaxBytesReader(w, r.Body, 1048576)
+		rawBodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			log.Printf("[CHAT] Failed to read request body: %v", err)
+			utils.WriteJSONError(w, "Failed to read request body", http.StatusBadRequest)
 			return
 		}
+
+		// Decode request into struct
+		var req ChatAgentRequest
+		err = json.Unmarshal(rawBodyBytes, &req)
+		if err != nil {
+			log.Printf("[CHAT] JSON decode error: %v", err)
+			utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		log.Printf("[CHAT] Decoded request: %+v", req)
 
 		// Overwrite agent role to ensure it's correct for this endpoint
 		req.AgentRole = agentRole
 
 		promptTemplate, err := prompt.GetPrompt(promptKey)
 		if err != nil {
-			http.Error(w, "Failed to get chat prompt", http.StatusInternalServerError)
+			log.Printf("[CHAT] Failed to get chat prompt: %v", err)
+			utils.WriteJSONError(w, "Failed to load chat prompt", http.StatusInternalServerError)
 			return
 		}
+		log.Printf("[CHAT] Loaded system prompt")
+
+		// Construct final prompt
 		promptStr := utils.PromptWithVars(promptTemplate, req.Title, req.Objective, req.EducationLevel, req.Difficulty)
-		promptMap := map[string]interface{}{
+
+		userDetailsJson, err := json.Marshal(req)
+		if err != nil {
+			log.Printf("[CHAT] Failed to serialize user message: %v", err)
+			utils.WriteJSONError(w, "Failed to serialize user message", http.StatusInternalServerError)
+			return
+		}
+
+		fullPrompt := promptStr + "\n" + string(userDetailsJson)
+		log.Printf("[CHAT] Final Prompt: %s", fullPrompt)
+
+		payload := map[string]interface{}{
+			"modelName": "deepseek-chat",
 			"input": map[string]string{
-				"prompt": promptStr,
+				"prompt": fullPrompt,
 			},
 		}
-		chatResp, err := llmClient.Call("/chat", promptMap)
+
+		chatResp, err := llmClient.Call("/chat", payload)
 		if err != nil {
-			http.Error(w, "Failed to generate chat response", http.StatusInternalServerError)
+			log.Printf("[CHAT] LLM error: %v", err)
+			utils.WriteJSONError(w, "Failed to generate chat response", http.StatusInternalServerError)
 			return
 		}
+
+		cleaned := strings.TrimSpace(chatResp)
+		if strings.HasPrefix(cleaned, "```") {
+			cleaned = strings.TrimPrefix(cleaned, "```")
+			cleaned = strings.TrimSuffix(cleaned, "```")
+			cleaned = strings.TrimSpace(cleaned)
+		}
+
+		finalResponse := map[string]string{
+			"response": cleaned,
+		}
+
+		respBytes, err := json.Marshal(finalResponse)
+		if err != nil {
+			utils.WriteJSONError(w, "Failed to serialize chat response", http.StatusInternalServerError)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(chatResp))
+		w.Write(respBytes)
 	}
 }
 
@@ -66,62 +120,4 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 var ProfessorChatHandler = chatHandlerWithRole("professorChatPrompt", string(ProfessorAgent))
 var LibrarianChatHandler = chatHandlerWithRole("librarianChatPrompt", string(LibrarianAgent))
 var ExaminerChatHandler = chatHandlerWithRole("examinerChatPrompt", string(ExaminerAgent))
-
-// Handler for /chat endpoint (legacy, keeps agent_role in payload)
-func ChatHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Decode request body
-	var req ChatAgentRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Validate agent role
-	role := req.AgentRole
-	var promptKey string
-	switch role {
-	case string(ProfessorAgent):
-		promptKey = "professorChatPrompt"
-	case string(LibrarianAgent):
-		promptKey = "librarianChatPrompt"
-	case string(ExaminerAgent):
-		promptKey = "examinerChatPrompt"
-	default:
-		http.Error(w, "Invalid agent_role. Must be one of: professor, librarian, examiner", http.StatusBadRequest)
-		return
-	}
-
-	// Fetch the prompt from RAM
-	promptTemplate, err := prompt.GetPrompt(promptKey)
-	if err != nil {
-		http.Error(w, "Failed to get chat prompt", http.StatusInternalServerError)
-		return
-	}
-
-	// Format prompt with variables
-	promptStr := utils.PromptWithVars(promptTemplate, req.Title, req.Objective, req.EducationLevel, req.Difficulty)
-
-	// Create prompt input
-	promptMap := map[string]interface{}{
-		"input": map[string]string{
-			"prompt": promptStr,
-		},
-	}
-
-	// Call LLM client
-	chatResp, err := llmClient.Call("/chat", promptMap)
-	if err != nil {
-		http.Error(w, "Failed to generate chat response", http.StatusInternalServerError)
-		return
-	}
-
-	// Return response
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(chatResp))
-}
+var ChatHandler = chatHandlerWithRole("professorChatPrompt", string(ProfessorAgent))

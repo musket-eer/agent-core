@@ -7,8 +7,8 @@ services:
     environment:
       - DEEPSEEK_URL=${DEEPSEEK_URL}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_URL=${SUPABASE_API_URL}
+      - SUPABASE_KEY=${SUPABASE_ANON_KEY}
     volumes:
       - ./internal/llm/configs:/root/internal/llm/configs
       - .env:/root/.env

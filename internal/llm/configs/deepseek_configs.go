@@ -24,7 +24,7 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 	"/generate-notes": {
 		ModelName:   "deepseek-chat",
 		Temperature: 0.5,
-		MaxTokens:   512,
+		MaxTokens:   1024,
 	},
 	"/generate-exams": {
 		ModelName:   "deepseek-chat",
@@ -34,7 +34,7 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 	"/generate-resources": {
 		ModelName:   "deepseek-chat",
 		Temperature: 0.4,
-		MaxTokens:   512,
+		MaxTokens:   1024,
 	},
 	"/chat": {
 		ModelName:   "deepseek-chat",
