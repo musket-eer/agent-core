@@ -22,7 +22,7 @@ You will receive a JSON object with the following structure:
     "level": string,
     "objectives": string[],    // Learning objectives
     "topics": string[],        // Topics covered
-    "prerequisites": string[], // Required background
+    "priorKnowledge": string[], // Required background
     "industryRelevance": string[], // Real-world applications
     "skillsTargeted": string[], // Skills being developed
     "assessmentHistory": {      // Previous assessment patterns

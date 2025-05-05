@@ -2,7 +2,6 @@ package llm
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
@@ -32,7 +31,7 @@ type CourseResponse struct {
 	Difficulty          string       `json:"difficulty"`
 	TotalDuration       int          `json:"totalDuration"`
 	WeeklyHours         int          `json:"weeklyHours"`
-	Prerequisites       []string     `json:"prerequisites"`
+	PriorKnowledge       []string     `json:"priorKnowledge"`
 	LearningObjectives  []string     `json:"learningObjectives"`
 	Units               []CourseUnit `json:"units"`
 	CreatedAt           string       `json:"createdAt"`
@@ -53,7 +52,7 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		Difficulty  string   `json:"difficulty"`
 		TotalDuration int          `json:"totalDuration"`
 		WeeklyHours         int          `json:"weeklyHours"`
-		Prerequisites       []string     `json:"prerequisites"`
+		PriorKnowledge       []string     `json:"priorKnowledge"`
 		LearningObjectives  []string     `json:"learningObjectives"`
 		Units               []CourseUnit `json:"units"`
 	}
@@ -113,7 +112,6 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 	// --- Check Supabase cache
 	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
 	if hit {
-		log.Println("[generate-course] Cache hit.")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(cachedResponse))
 		return
@@ -141,7 +139,6 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 	// --- Parse into strongly typed struct
 	var parsed CourseResponse
 	if err := json.Unmarshal([]byte(cleaned), &parsed); err != nil {
-		log.Printf("[generate-course] JSON parse error: %v", err)
 		utils.WriteJSONError(w, "Invalid JSON format in LLM response", http.StatusBadRequest)
 		return
 	}

@@ -3,7 +3,6 @@ package llm
 import (
 	"encoding/json"
 	"net/http"
-
 	"agent-core/internal/embedding"
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/prompt"
@@ -59,7 +58,6 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	
 		return
 	}
-
 	cfg, ok := configs.GetDeepseekConfig("/generate-lesson")
 	if !ok {
 		utils.WriteJSONError(w, "No config for generation", http.StatusInternalServerError)

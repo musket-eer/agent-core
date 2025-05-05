@@ -12,7 +12,7 @@ Each course must include:
   "difficulty": "beginner|intermediate|advanced",
   "totalDuration": number,         // In hours
   "weeklyHours": number,
-  "prerequisites": [ "string" ],   // Max 5 (ignore for now)
+  "priorKnowledge": [ "string" ],   
   "learningObjectives": [ "string" ], // Max 5, drawn from user goals
   "units": [
     {

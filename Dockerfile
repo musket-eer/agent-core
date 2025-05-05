@@ -11,5 +11,7 @@ WORKDIR /root/
 COPY --from=builder /app/agent-core .
 COPY --from=builder /app/.env .
 COPY --from=builder /app/internal/llm/configs ./internal/llm/configs
+COPY --from=builder /app/configs/prompts ./configs/prompts
+
 EXPOSE 8080
 CMD ["./agent-core"]

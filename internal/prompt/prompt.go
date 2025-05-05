@@ -1,54 +1,75 @@
-// Reads the prompts and persists them in memory as well as have the memory addresses of buffered prompts.
 package prompt
-
 
 import (
 	"fmt"
-	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 )
 
-// promptStore holds prompt contents in memory and maps endpoint -> pointer to prompt string
 var (
 	promptStore      = make(map[string]*string)
 	promptStoreMutex sync.RWMutex
-	loadOnce        sync.Once
+	loadOnce         sync.Once
+	requiredPrompts  = []string{
+		"lessonSequencePrompt",
+		// Add other critical prompts here if needed
+	}
 )
 
-// LoadPrompts loads all prompt files from configs/prompts/ into memory
+// LoadPrompts loads all prompt files into memory
 func LoadPrompts() error {
 	var loadErr error
 	loadOnce.Do(func() {
-		promptDir := filepath.Join("configs", "prompts")
-		files, err := ioutil.ReadDir(promptDir)
+		promptDir := os.Getenv("PROMPT_DIR")
+		if promptDir == "" {
+			promptDir = filepath.Join("configs", "prompts")
+		}
+
+		files, err := os.ReadDir(promptDir)
 		if err != nil {
 			loadErr = fmt.Errorf("failed to read prompts directory: %w", err)
 			return
 		}
+
 		promptStoreMutex.Lock()
 		defer promptStoreMutex.Unlock()
+
 		for _, file := range files {
-			if file.IsDir() { continue }
+			if file.IsDir() {
+				continue
+			}
 			name := file.Name()
+			ext := strings.ToLower(filepath.Ext(name))
+			if ext != ".txt" && ext != ".md" && ext != ".yaml" && ext != ".yml" {
+				continue // skip non-prompt files
+			}
+
+			endpoint := strings.TrimSuffix(name, filepath.Ext(name))
 			path := filepath.Join(promptDir, name)
 			contentBytes, err := os.ReadFile(path)
 			if err != nil {
-				loadErr = fmt.Errorf("failed to read prompt file %s: %w", name, err)
+				loadErr = err
 				return
 			}
-			// Use filename (without extension) as endpoint key
-			endpoint := strings.TrimSuffix(name, filepath.Ext(name))
 			content := string(contentBytes)
 			promptStore[endpoint] = &content
+		}
+
+		// Ensure required prompts are loaded
+		for _, required := range requiredPrompts {
+			if _, ok := promptStore[required]; !ok {
+				loadErr = fmt.Errorf("🚨 required prompt '%s' not found in %s", required, promptDir)
+				log.Println(loadErr)
+				return
+			}
 		}
 	})
 	return loadErr
 }
 
-// GetPromptPtr returns the pointer to the prompt string for a given endpoint
 func GetPromptPtr(endpoint string) (*string, error) {
 	if err := LoadPrompts(); err != nil {
 		return nil, err
@@ -62,7 +83,6 @@ func GetPromptPtr(endpoint string) (*string, error) {
 	return ptr, nil
 }
 
-// GetPrompt returns the prompt string for a given endpoint
 func GetPrompt(endpoint string) (string, error) {
 	ptr, err := GetPromptPtr(endpoint)
 	if err != nil {

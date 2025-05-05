@@ -23,9 +23,6 @@ func TestCacheEmbeddingAndCheck_Integration(t *testing.T) {
 		t.Skip("SUPABASE_API_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_TABLE_NAME must be set for integration test")
 	}
 
-	t.Logf("[DEBUG] SUPABASE_API_URL: %s", apiUrl)
-	t.Logf("[DEBUG] SUPABASE_TABLE_NAME: %s", table)
-
 	client := &SupabasePgvectorClient{ApiUrl: apiUrl, ApiKey: apiKey, TableName: table}
 
 	key := "test-key-123"
@@ -54,9 +51,6 @@ func TestCheck_Integration(t *testing.T) {
 	if apiUrl == "" || apiKey == "" || table == "" {
 		t.Skip("SUPABASE_API_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_TABLE_NAME must be set for integration test")
 	}
-
-	t.Logf("[DEBUG] SUPABASE_API_URL: %s", apiUrl)
-	t.Logf("[DEBUG] SUPABASE_TABLE_NAME: %s", table)
 
 	client := &SupabasePgvectorClient{ApiUrl: apiUrl, ApiKey: apiKey, TableName: table}
 

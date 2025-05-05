@@ -22,15 +22,11 @@ func main() {
 	// Set up Deepseek client from environment variables
 	baseURL := os.Getenv("DEEPSEEK_URL")
 	apiKey := os.Getenv("DEEPSEEK_API_KEY")
-	log.Printf("[Startup] Deepseek BaseURL: '%s'", baseURL)
-	log.Printf("[Startup] Deepseek API Key set: %v", apiKey != "")
 	deepseekClient := llm.NewDeepseekClient(apiKey, baseURL)
 	llm.LlmClientSet(deepseekClient)
 
 	// Set up global Supabase client
 	supabaseClient = cache.NewSupabasePgvectorClient()
-	log.Printf("[Startup] Supabase API URL: '%s'", supabaseClient.ApiUrl)
-	log.Printf("[Startup] Supabase Table: '%s'", supabaseClient.TableName)
 
 	// setup embedding dimension directly from environment
 	dimStr := os.Getenv("EMBEDDING_DIMENSION")

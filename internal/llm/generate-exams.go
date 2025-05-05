@@ -2,7 +2,6 @@ package llm
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
@@ -51,7 +50,6 @@ func GenerateExamsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 	}
 	if hit {
-		log.Printf("[generate-exams] Cache hit. Responding with cached data: %s", cachedResponse)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(cachedResponse))
 		return
