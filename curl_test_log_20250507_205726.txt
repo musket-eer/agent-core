@@ -1,0 +1,132 @@
+\n==============================
+Testing endpoint: /generate-course
+Description: Generate a full course syllabus.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   131    0     0  100   131      0    108  0:00:01  0:00:01 --:--:--   108100   131    0     0  100   131      0     59  0:00:02  0:00:02 --:--:--    59100   131    0     0  100   131      0     40  0:00:03  0:00:03 --:--:--    40100   131    0     0  100   131      0     31  0:00:04  0:00:04 --:--:--    31100   131    0     0  100   131      0     25  0:00:05  0:00:05 --:--:--    25100   131    0     0  100   131      0     21  0:00:06  0:00:06 --:--:--     0100   131    0     0  100   131      0     18  0:00:07  0:00:07 --:--:--     0100   131    0     0  100   131      0     15  0:00:08  0:00:08 --:--:--     0100   131    0     0  100   131      0     14  0:00:09  0:00:09 --:--:--     0100   131    0     0  100   131      0     12  0:00:10  0:00:10 --:--:--     0100   131    0     0  100   131      0     11  0:00:11  0:00:11 --:--:--     0100  1082  100   951  100   131     81     11  0:00:11  0:00:11 --:--:--   214
+
+[HTTP STATUS]: 200
+[TOTAL TIME]: 11.675673s
+[RESPONSE BODY]:
+{"id":"af2cf5dd-09d2-4e6f-8c46-d4acffad1e19","title":"Introduction to Data Science","description":"This beginner-level course will introduce you to data science concepts and tools. No prior experience needed.","difficulty":"beginner","totalDuration":16,"weeklyHours":4,"priorKnowledge":["Basic computer skills","Basic math skills"],"learningObjectives":["Perform basic data analysis","Create data visualizations","Build a machine learning model"],"units":[{"id":"456e8912-e345-6789-a123-4214174000ab","title":"Introduction to Data","description":"Learn what data science is and how it can be applied.","duration":90,"objectives":["Define data science","Explain use cases"],"content":["What is data science","Applications of data science"],"exercises":["Data science quiz"],"assessment":"Short essay on understanding of data science"}],"createdAt":"2025-05-07T20:57:38-07:00","updatedAt":"2025-05-07T20:57:38-07:00","progress":0,"currentLessonIndex":0}[CONTRACT CHECK]: ❌ Response does NOT match contract (missing expected key)
+\n==============================
+Testing endpoint: /generate-lesson
+Description: Generate a lesson plan.
+Payload:
+{ "title": "Lesson 1: Introduction to AI", "objective": "Understand what AI is and its applications", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   164    0     0  100   164      0    808 --:--:-- --:--:-- --:--:--   807100   164    0     0  100   164      0    136  0:00:01  0:00:01 --:--:--   135100   164    0     0  100   164      0     74  0:00:02  0:00:02 --:--:--    74100   164    0     0  100   164      0     51  0:00:03  0:00:03 --:--:--    51100   164    0     0  100   164      0     38  0:00:04  0:00:04 --:--:--    38100   164    0     0  100   164      0     31  0:00:05  0:00:05 --:--:--     0100   164    0     0  100   164      0     26  0:00:06  0:00:06 --:--:--     0100   164    0     0  100   164      0     22  0:00:07  0:00:07 --:--:--     0100   164    0     0  100   164      0     19  0:00:08  0:00:08 --:--:--     0100  1594  100  1430  100   164    161     18  0:00:09  0:00:08  0:00:01   307
+
+[HTTP STATUS]: 200
+[TOTAL TIME]: 8.869830s
+[RESPONSE BODY]:
+{"lessonPlan":{"lessonMetadata":{"title":"Here is a 10 step lesson sequence on the provided topic:","objectives":[],"duration":"Be able to train and evaluate models","difficulty":"90 mins"},"activities":[{"id":"Beginner","leader":"","title":""},{"id":"101","leader":"Professor","title":"Provide an overview of machine learning and its real-world applications."},{"id":"102","leader":"Professor","title":"Explain supervised learning and its use cases like classification and regression."},{"id":"103","leader":"Professor","title":"Explain unsupervised learning and its use cases like clustering and dimensionality reduction."},{"id":"104","leader":"Professor","title":"Demonstrate training machine learning models on sample datasets."},{"id":"105","leader":"Professor","title":"Guide students through evaluating model performance using metrics like accuracy and RMSE."},{"id":"106","leader":"Professor","title":"Facilitate an interactive discussion on challenges in machine learning like overfitting."},{"id":"107","leader":"Professor","title":"Lead a hands-on exercise on training and tuning models."},{"id":"108","leader":"Professor","title":"Assign a short project to build a simple ML model on a dataset."},{"id":"109","leader":"Professor","title":"Review key concepts and clarify doubts on machine learning fundamentals."},{"id":"110","leader":"Professor","title":"Conclude with a summary of the lesson and open Q\u0026A."}]}}[CONTRACT CHECK]: ❌ Response does NOT match contract (missing expected key)
+\n==============================
+Testing endpoint: /generate-notes
+Description: Generate study notes.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   131    0     0  100   131      0    634 --:--:-- --:--:-- --:--:--   632100   131    0     0  100   131      0    108  0:00:01  0:00:01 --:--:--   108100   131    0     0  100   131      0     59  0:00:02  0:00:02 --:--:--    59100   462  100   331  100   131    127     50  0:00:02  0:00:02 --:--:--   177
+
+[HTTP STATUS]: 200
+[TOTAL TIME]: 2.603217s
+[RESPONSE BODY]:
+{"id":"34cc19f8-1eb1-40d4-9325-a090ce44bc70","notes":"Unfortunately I do not have enough information about the specific lesson, student profile, or course details to generate detailed, personalized notes. If you could provide those details, I would be happy to try generating helpful study notes tailored to that student's needs."}[CONTRACT CHECK]: SUCCESS response with "notes" present ✅
+\n==============================
+Testing endpoint: /generate-exams
+Description: Generate exam questions.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   177  100    46  100   131  49515   137k --:--:-- --:--:-- --:--:--  172k
+
+[HTTP STATUS]: 400
+[TOTAL TIME]: 0.000929s
+[RESPONSE BODY]:
+{"error":"Invalid or missing messages array"}
+[CONTRACT CHECK]: ERROR response with 'error' field present ✅
+\n==============================
+Testing endpoint: /generate-resources
+Description: Generate resource recommendations.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Teach the basics of AI", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   189  100    58  100   131  44822    98k --:--:-- --:--:-- --:--:--  184k
+
+[HTTP STATUS]: 400
+[TOTAL TIME]: 0.001294s
+[RESPONSE BODY]:
+{"error":"Messages array must include resource context."}
+[CONTRACT CHECK]: ERROR response with 'error' field present ✅
+\n==============================
+Testing endpoint: /chat
+Description: Chat with the LLM as a professor.
+Payload:
+{ "title": "AI Fundamentals", "objective": "Discuss AI concepts", "difficulty": "beginner", "education_level": "undergraduate", "agent_role": "professor" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   200  100    45  100   155  40431   135k --:--:-- --:--:-- --:--:--  195k
+
+[HTTP STATUS]: 500
+[TOTAL TIME]: 0.001113s
+[RESPONSE BODY]:
+{"error":"Failed to generate chat response"}
+[CONTRACT CHECK]: ERROR response with 'error' field present ✅
+\n==============================
+Testing endpoint: /professor-chat
+Description: Chat with the LLM as a professor (dedicated endpoint).
+Payload:
+{ "title": "AI Fundamentals", "objective": "Discuss AI concepts", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   173  100    45  100   128  50904   141k --:--:-- --:--:-- --:--:--  168k
+
+[HTTP STATUS]: 500
+[TOTAL TIME]: 0.000884s
+[RESPONSE BODY]:
+{"error":"Failed to generate chat response"}
+[CONTRACT CHECK]: ERROR response with 'error' field present ✅
+\n==============================
+Testing endpoint: /librarian-chat
+Description: Chat with the LLM as a librarian (dedicated endpoint).
+Payload:
+{ "title": "AI Fundamentals", "objective": "Find information resources", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   180  100    45  100   135  49944   146k --:--:-- --:--:-- --:--:--  175k
+
+[HTTP STATUS]: 500
+[TOTAL TIME]: 0.000901s
+[RESPONSE BODY]:
+{"error":"Failed to generate chat response"}
+[CONTRACT CHECK]: ERROR response with 'error' field present ✅
+\n==============================
+Testing endpoint: /examiner-chat
+Description: Chat with the LLM as an examiner (dedicated endpoint).
+Payload:
+{ "title": "AI Fundamentals", "objective": "Quiz the student on AI concepts", "difficulty": "beginner", "education_level": "undergraduate" }
+------------------------------
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100   185  100    45  100   140  26470  82352 --:--:-- --:--:-- --:--:--  180k
+
+[HTTP STATUS]: 500
+[TOTAL TIME]: 0.001700s
+[RESPONSE BODY]:
+{"error":"Failed to generate chat response"}
+[CONTRACT CHECK]: ERROR response with 'error' field present ✅

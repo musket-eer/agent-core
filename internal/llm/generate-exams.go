@@ -56,7 +56,7 @@ func GenerateExamsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- Prepare model payload ---
-	cfg, ok := configs.GetConfig("/generate-exams")
+	cfg, ok := configs.GetDeepseekConfig("/generate-exams")
 	if !ok {
 		utils.WriteJSONError(w, "No config for exam generation", http.StatusInternalServerError)
 		return
@@ -78,7 +78,7 @@ Respond with pure JSON — no extra text.`,
 	messages := append(req.Messages, systemMsg)
 
 	payload := map[string]interface{}{
-		"model":       cfg.ModelName,
+		"model":       cfg.ModelId,
 		"messages":    messages,
 		"temperature": cfg.Temperature,
 		"max_tokens":  cfg.MaxTokens,

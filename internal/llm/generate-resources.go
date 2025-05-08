@@ -50,7 +50,7 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 
 	userMessage := req.Messages[1]
 
-	cfg, ok := configs.GetConfig("/generate-resources")
+	cfg, ok := configs.GetDeepseekConfig("/generate-resources")
 	if !ok {
 		utils.WriteJSONError(w, "No config for resource generation", http.StatusInternalServerError)
 		return
@@ -88,7 +88,7 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := map[string]interface{}{
-		"model":       cfg.ModelName,
+		"model":       cfg.ModelId,
 		"messages":    messages,
 		"temperature": cfg.Temperature,
 		"max_tokens":  cfg.MaxTokens,

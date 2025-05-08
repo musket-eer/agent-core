@@ -111,7 +111,7 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 
 	promptStr := systemPrompt + "\n" + string(userMessageBytes)
 	payload := map[string]interface{}{
-		"modelName": cfg.ModelName,
+		"model": cfg.ModelId,
 		"input": map[string]string{
 			"prompt": promptStr,
 		},

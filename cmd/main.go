@@ -10,6 +10,7 @@ import (
 	"agent-core/internal/cache"
 	"agent-core/internal/llm"
 	"agent-core/internal/embedding"
+	"agent-core/internal/llm/clients"
 )
 
 var supabaseClient *cache.SupabasePgvectorClient
@@ -22,7 +23,7 @@ func main() {
 	// Set up Deepseek client from environment variables
 	baseURL := os.Getenv("DEEPSEEK_URL")
 	apiKey := os.Getenv("DEEPSEEK_API_KEY")
-	deepseekClient := llm.NewDeepseekClient(apiKey, baseURL)
+	deepseekClient := clients.NewDeepseekClient(apiKey, baseURL)
 	llm.LlmClientSet(deepseekClient)
 
 	// Set up global Supabase client

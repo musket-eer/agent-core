@@ -51,13 +51,11 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var lessonReq LessonRequest
-
 	if err := json.NewDecoder(r.Body).Decode(&lessonReq); err != nil {
-	
 		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
-	
 		return
 	}
+
 	cfg, ok := configs.GetDeepseekConfig("/generate-lesson")
 	if !ok {
 		utils.WriteJSONError(w, "No config for generation", http.StatusInternalServerError)
@@ -66,96 +64,77 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 
 	systemPrompt, err := prompt.GetPrompt("lessonSequencePrompt")
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to load system prompt", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to load prompt", http.StatusInternalServerError)
 		return
 	}
 
-	lessonReqJson, err := json.Marshal(lessonReq)
-	if err != nil {
-		utils.WriteJSONError(w, "Failed to serialize lesson request", http.StatusInternalServerError)
-		return
-	}
+	// Transform input into prompt
+	userMessage, _ := json.Marshal(lessonReq)
+	fullPrompt := systemPrompt + "\n" + string(userMessage)
 
-	messages := []Message{
+	// Generate embedding for caching
+	combined, _ := json.Marshal([]Message{
 		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: string(lessonReqJson)},
-	}
-
-	// Cache Key
-	combinedBytes, _ := json.Marshal(messages)
-	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
+		{Role: "user", Content: string(userMessage)},
+	})
+	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combined)))
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
 		return
 	}
 
-	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
+	// Check cache
+	cached, _, hit, _ := supabaseClient.Check(embeddingVec)
 	if hit {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(cachedResponse))
+		w.Write([]byte(cached))
 		return
 	}
 
-	if llmClient == nil {
-		utils.WriteJSONError(w, "LLM client not initialized", http.StatusInternalServerError)
-		return
-	}
-
-	// Transform the incoming flat LessonRequest into a single prompt string for Deepseek
-	lessonReqJson, err = json.Marshal(lessonReq)
-	if err != nil {
-		utils.WriteJSONError(w, "Failed to serialize lesson request", http.StatusInternalServerError)
-		return
-	}
-	promptStr := systemPrompt + "\n" + string(lessonReqJson)
+	// Make LLM call
 	payload := map[string]interface{}{
-		"model": cfg.ModelName,
-		"input": map[string]string{"prompt": promptStr},
+		"model":       cfg.ModelId,
+		"input":       map[string]string{"prompt": fullPrompt},
 		"temperature": cfg.Temperature,
 		"max_tokens":  cfg.MaxTokens,
 	}
-
 	rawResponse, err := llmClient.Call("/generate-lesson", payload)
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to generate lesson", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to call LLM", http.StatusInternalServerError)
 		return
 	}
 
-	cleaned := utils.ExtractJsonFromCodeBlock(rawResponse)
-
-	// Parse lesson data using the utility function for raw LLM output
-	parsed := utils.ParseLessonData(cleaned)
-
-	// Map into structured LessonPlan
-	lessonMetadataRaw := parsed["lessonMetadata"].(map[string]interface{})
-	activitiesRaw := parsed["activities"].([]map[string]string)
-
-	metadata := LessonMetadata{
-		Title:      lessonMetadataRaw["title"].(string),
-		Objectives: toStringArray(lessonMetadataRaw["objectives"]),
-		Duration:   "",
-		Difficulty: "",
-	}
-	if v, ok := lessonMetadataRaw["duration"]; ok {
-		metadata.Duration = v.(string)
-	}
-	if v, ok := lessonMetadataRaw["difficulty"]; ok {
-		metadata.Difficulty = v.(string)
+	// Parse plain-text lines
+	lines := utils.ExtractNonEmptyLines(rawResponse)
+	if len(lines) != 10 {
+		utils.WriteJSONError(w, "Expected exactly 10 activities", http.StatusBadRequest)
+		return
 	}
 
-	activities := []Activity{}
-	for _, act := range activitiesRaw {
-		id := act["id"]
-		if id == "" {
-			id = uuid.New().String()
+	activities := make([]Activity, 0, 10)
+	for _, line := range lines {
+		parts := utils.SplitByPipe(line)
+		if len(parts) != 2 {
+			continue
 		}
+		leader := utils.Trim(parts[0])
+		title := utils.Trim(parts[1])
 		activities = append(activities, Activity{
-			ID:     id,
-			Leader: act["leader"],
-			Title:  act["title"],
+			ID:     uuid.New().String(),
+			Leader: leader,
+			Title:  title,
 		})
 	}
 
+	// Synthesize lesson metadata from request
+	metadata := LessonMetadata{
+		Title:      lessonReq.LessonTitle,
+		Objectives: lessonReq.LessonObjectives,
+		Duration:   "1 hour", // or based on LessonSize
+		Difficulty: lessonReq.EducationLevel,
+	}
+
+	// Compose final lesson
 	lesson := LessonPlan{
 		LessonMetadata: metadata,
 		Activities:     activities,
@@ -164,28 +143,15 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	final := map[string]interface{}{
 		"lessonPlan": lesson,
 	}
-
 	finalBytes, err := json.Marshal(final)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to serialize lesson", http.StatusInternalServerError)
 		return
 	}
 
+	// Cache final result (optional)
+	// _ = supabaseClient.CacheEmbedding(string(combined), embeddingVec, string(finalBytes))
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)
-}
-
-// helper
-func toStringArray(raw interface{}) []string {
-	items, ok := raw.([]interface{})
-	if !ok {
-		return []string{}
-	}
-	strs := make([]string, 0, len(items))
-	for _, i := range items {
-		if s, ok := i.(string); ok {
-			strs = append(strs, s)
-		}
-	}
-	return strs
 }

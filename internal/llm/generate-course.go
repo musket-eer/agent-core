@@ -13,6 +13,17 @@ import (
 	"github.com/google/uuid"
 )
 
+type RawCourseUnit struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+type RawCourse struct {
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Units       []RawCourseUnit `json:"units"`
+}
+
 type CourseUnit struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
@@ -25,19 +36,19 @@ type CourseUnit struct {
 }
 
 type CourseResponse struct {
-	ID                  string       `json:"id"`
-	Title               string       `json:"title"`
-	Description         string       `json:"description"`
-	Difficulty          string       `json:"difficulty"`
-	TotalDuration       int          `json:"totalDuration"`
-	WeeklyHours         int          `json:"weeklyHours"`
-	PriorKnowledge       []string     `json:"priorKnowledge"`
-	LearningObjectives  []string     `json:"learningObjectives"`
-	Units               []CourseUnit `json:"units"`
-	CreatedAt           string       `json:"createdAt"`
-	UpdatedAt           string       `json:"updatedAt"`
-	Progress            int          `json:"progress"`
-	CurrentLessonIndex  int          `json:"currentLessonIndex"`
+	ID                 string       `json:"id"`
+	Title              string       `json:"title"`
+	Description        string       `json:"description"`
+	Difficulty         string       `json:"difficulty"`
+	TotalDuration      int          `json:"totalDuration"`
+	WeeklyHours        int          `json:"weeklyHours"`
+	PriorKnowledge     []string     `json:"priorKnowledge"`
+	LearningObjectives []string     `json:"learningObjectives"`
+	Units              []CourseUnit `json:"units"`
+	CreatedAt          string       `json:"createdAt"`
+	UpdatedAt          string       `json:"updatedAt"`
+	Progress           int          `json:"progress"`
+	CurrentLessonIndex int          `json:"currentLessonIndex"`
 }
 
 func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
@@ -46,47 +57,42 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract payload from frontend (goals, profile, etc.)
 	type Course struct {
-		Title       string   `json:"title"`
-		Description string   `json:"description"`
-		Difficulty  string   `json:"difficulty"`
-		TotalDuration int          `json:"totalDuration"`
-		WeeklyHours         int          `json:"weeklyHours"`
-		PriorKnowledge       []string     `json:"priorKnowledge"`
-		LearningObjectives  []string     `json:"learningObjectives"`
-		Units               []CourseUnit `json:"units"`
+		Title              string   `json:"title"`
+		Description        string   `json:"description"`
+		Difficulty         string   `json:"difficulty"`
+		TotalDuration      int      `json:"totalDuration"`
+		WeeklyHours        int      `json:"weeklyHours"`
+		PriorKnowledge     []string `json:"priorKnowledge"`
+		LearningObjectives []string `json:"learningObjectives"`
 	}
-
 	type ProfileData struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
 	}
-
 	type CoursePayLoad struct {
-		Course Course `json:"course"`
+		Course      Course      `json:"course"`
 		ProfileData ProfileData `json:"profileData"`
 	}
 
-	// Parse frontend payload (ignore model, temperature, etc.)
 	var req CoursePayLoad
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// --- Load system prompt
 	systemPrompt, err := prompt.GetPrompt("courseGenerationPrompt")
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to load system prompt", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to load prompt", http.StatusInternalServerError)
 		return
 	}
 
-	// --- Combine user content and system prompt
+	// --- Combine input
 	userMessage := map[string]interface{}{
 		"course":      req.Course,
 		"profileData": req.ProfileData,
 	}
-
 	userMessageJson, _ := json.Marshal(userMessage)
 	fullMessages := []Message{
 		{Role: "system", Content: systemPrompt},
@@ -95,33 +101,30 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 
 	cfg, ok := configs.GetDeepseekConfig("/generate-course")
 	if !ok {
-		utils.WriteJSONError(w, "No config for generation", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "No config found", http.StatusInternalServerError)
 		return
 	}
 
-	// --- Embedding for cache key
+	// Embedding for cache key
 	combinedBytes, _ := json.Marshal(fullMessages)
 	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to embed", http.StatusInternalServerError)
 		return
 	}
 
-	// key := string(combinedBytes)
-
-	// --- Check Supabase cache
-	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
+	// Check cache
+	cached, _, hit, _ := supabaseClient.Check(embeddingVec)
 	if hit {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(cachedResponse))
+		w.Write([]byte(cached))
 		return
 	}
 
-	// --- Build LLM payload
+	// Final prompt
 	finalPrompt := systemPrompt + "\n" + string(combinedBytes)
-
 	payload := map[string]interface{}{
-		"model":       cfg.ModelName,
+		"model":       cfg.ModelId,
 		"input":       map[string]string{"prompt": finalPrompt},
 		"temperature": cfg.Temperature,
 		"max_tokens":  cfg.MaxTokens,
@@ -129,39 +132,62 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 
 	response, err := llmClient.Call("/generate-course", payload)
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to call LLM", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "LLM call failed", http.StatusInternalServerError)
 		return
 	}
 
-	// --- Clean response (strip ```json)
 	cleaned := utils.ExtractJsonFromCodeBlock(response)
 
-	// --- Parse into strongly typed struct
-	var parsed CourseResponse
-	if err := json.Unmarshal([]byte(cleaned), &parsed); err != nil {
-		utils.WriteJSONError(w, "Invalid JSON format in LLM response", http.StatusBadRequest)
+	// Parse the raw structure from LLM
+	var raw RawCourse
+	if err := json.Unmarshal([]byte(cleaned), &raw); err != nil {
+		utils.WriteJSONError(w, "LLM response unmarshal failed", http.StatusBadRequest)
 		return
 	}
 
-	// --- Enrich with backend fields
-	parsed.ID = uuid.New().String()
+	// Enrich into full structure
 	now := time.Now().Format(time.RFC3339)
-	parsed.CreatedAt = now
-	parsed.UpdatedAt = now
-	parsed.Progress = 0
-	parsed.CurrentLessonIndex = 0
+	courseID := uuid.New().String()
 
-	// --- Marshal final response
+	var enrichedUnits []CourseUnit
+	for _, u := range raw.Units {
+		enrichedUnits = append(enrichedUnits, CourseUnit{
+			ID:          uuid.New().String(),
+			Title:       u.Title,
+			Description: u.Description,
+			Duration:    90, // default 90 minutes
+			Objectives:  []string{"Understand key concepts", "Apply in real-world"},
+			Content:     []string{"TBD"},
+			Exercises:   []string{"TBD"},
+			Assessment:  "TBD",
+		})
+	}
+
+	parsed := CourseResponse{
+		ID:                 courseID,
+		Title:              raw.Title,
+		Description:        raw.Description,
+		Difficulty:         req.Course.Difficulty,
+		TotalDuration:      req.Course.TotalDuration,
+		WeeklyHours:        req.Course.WeeklyHours,
+		PriorKnowledge:     req.Course.PriorKnowledge,
+		LearningObjectives: req.Course.LearningObjectives,
+		Units:              enrichedUnits,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+		Progress:           0,
+		CurrentLessonIndex: 0,
+	}
+
 	finalBytes, err := json.Marshal(parsed)
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to serialize course", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to serialize response", http.StatusInternalServerError)
 		return
 	}
 
-	// --- Cache final response (disabled)
-	// _ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
+	// Optionally: cache response
+	// _ = supabaseClient.CacheEmbedding(string(combinedBytes), embeddingVec, string(finalBytes))
 
-	// --- Send response
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)
 }
