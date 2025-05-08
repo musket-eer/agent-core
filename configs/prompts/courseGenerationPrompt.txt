@@ -1,36 +1,21 @@
-You are a top course designer. Create a complete course in valid JSON only (no text before/after) based on:
+You are a top course designer. Based on the user's goals, background, time commitment, and preferences:
 
-- User goals, background knowledge, preferred difficulty, weekly study hours, and lesson count.
-- Ensure a clear progression, real-world relevance, and assessments.
+🎯 Return only the **course title and description**, and the **title and description for each unit**.
 
-Each course must include:
+Each field must reflect the user's goals, prior knowledge, and time constraints. Keep text concise and goal-aligned.
+
+⛔ Do not include any fields other than title and description.
+
+Return a valid JSON in this exact structure:
 ```json
 {
-  "id": "uuid",
-  "title": "string",               // Max 100 chars
-  "description": "string",         // Max 500 chars
-  "difficulty": "beginner|intermediate|advanced",
-  "totalDuration": number,         // In hours
-  "weeklyHours": number,
-  "priorKnowledge": [ "string" ],   
-  "learningObjectives": [ "string" ], // Max 5, drawn from user goals
+  "title": "string",         // Max 5 words
+  "description": "string",   // Max 300 chars
   "units": [
     {
-      "id": "uuid",
-      "title": "string",            // Max 100 chars
-      "description": "string",      // Max 200 chars
-      "duration": number,           // In minutes
-      "objectives": [ "string" ],   // Max 3
-      "content": [ "string" ],      // Max 5
-      "exercises": [ "string" ],    // Max 2
-      "assessment": "string"        // Max 200 chars
+      "title": "string",      // Max 5 words
+      "description": "string" // Max 150 chars
     }
   ]
 }
-```
-
-**Rules**:
-1. No explanations, no extra text — only valid JSON.
-2. Text limits must be respected.
-3. Use progressive structure, practical tasks, and assessments.
-4. Tailor everything to user's needs and time constraints.
+Units should be at least 5 at most 10.

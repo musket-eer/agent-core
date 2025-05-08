@@ -3,7 +3,7 @@ package configs
 
 // DeepseekConfig holds configuration for a Deepseek endpoint.
 type DeepseekConfig struct {
-	ModelName    string
+	ModelId    string
 	Temperature  float64
 	MaxTokens    int
 	OtherParams  map[string]interface{}
@@ -12,32 +12,32 @@ type DeepseekConfig struct {
 // DeepseekEndpointConfigs maps endpoint names to their DeepseekConfig.
 var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 	"/generate-lesson": {
-		ModelName:   "deepseek-chat",
+		ModelId:   "deepseek-chat",
 		Temperature: 0.7,
 		MaxTokens:   1024,
 	},
 	"/generate-course": {
-		ModelName:   "deepseek-chat",
+		ModelId:   "deepseek-chat",
 		Temperature: 0.6,
 		MaxTokens:   2048,
 	},
 	"/generate-notes": {
-		ModelName:   "deepseek-chat",
+		ModelId:   "deepseek-chat",
 		Temperature: 0.5,
 		MaxTokens:   1024,
 	},
 	"/generate-exams": {
-		ModelName:   "deepseek-chat",
+		ModelId:   "deepseek-chat",
 		Temperature: 0.8,
 		MaxTokens:   1024,
 	},
 	"/generate-resources": {
-		ModelName:   "deepseek-chat",
+		ModelId:   "deepseek-chat",
 		Temperature: 0.4,
 		MaxTokens:   1024,
 	},
 	"/chat": {
-		ModelName:   "deepseek-chat",
+		ModelId:   "deepseek-chat",
 		Temperature: 0.9,
 		MaxTokens:   200,
 	},

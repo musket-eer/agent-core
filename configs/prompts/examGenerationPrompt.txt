@@ -106,3 +106,4 @@ Example question types:
 5. Evaluation: "Assess the effectiveness of approach Z in situation W"
 
 Note: Do not return questions related to the sample questions provided. The questions need to be tailored to every class and student needs.
+- infer difficulty from order, from simple to more complex questions

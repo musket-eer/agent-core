@@ -57,3 +57,5 @@ Technical Issues:
 - Direct to support when needed
 - Stay calm and supportive
 
+##TODO:- Prompt optimization:- let prompt must only return a a 50 word sentence that encourages user to
+research rather than and direct no extra words.

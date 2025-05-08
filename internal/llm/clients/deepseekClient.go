@@ -1,4 +1,4 @@
-package llm
+package clients
 
 import (
 	"context"
@@ -30,9 +30,9 @@ func (c *DeepseekClient) Call(endpoint string, params map[string]interface{}) (s
 	if !ok {
 		return "", fmt.Errorf("no Deepseek config for endpoint: %s", endpoint)
 	}
-	model, _ := params["modelName"].(string)
+	model, _ := params["model"].(string)
 	if model == "" {
-		model = config.ModelName
+		model = config.ModelId
 	}
 	inputMap, _ := params["input"].(map[string]string)
 	prompt := inputMap["prompt"]
