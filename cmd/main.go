@@ -6,18 +6,18 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/joho/godotenv"
-	"agent-core/internal/cache"
-	"agent-core/internal/llm"
+	// "agent-core/internal/cache"
 	"agent-core/internal/embedding"
+	"agent-core/internal/llm"
 	"agent-core/internal/llm/clients"
-)
 
-var supabaseClient *cache.SupabasePgvectorClient
+	"github.com/joho/godotenv"
+	// "agent-core/internal/cache/supabaseclient"
+)
 
 func main() {
 	// Load .env file
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load(".env"); err != nil {
 		log.Printf("Warning: .env file not loaded: %v", err)
 	}
 	// Set up Deepseek client from environment variables
@@ -25,9 +25,16 @@ func main() {
 	apiKey := os.Getenv("DEEPSEEK_API_KEY")
 	deepseekClient := clients.NewDeepseekClient(apiKey, baseURL)
 	llm.LlmClientSet(deepseekClient)
+	
 
-	// Set up global Supabase client
-	supabaseClient = cache.NewSupabasePgvectorClient()
+	// supabaseUrl := os.Getenv("SUPABASE_API_URL")
+	// supabaseApiKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
+	// supabaseTableName := os.Getenv("SUPABASE_TABLE_NAME")
+	// // Set up global Supabase client
+	// // supabaseClient := supabaseclient.NewSupabaseClient(supabaseUrl, supabaseApiKey, supabaseTableName)
+
+	// // Set up supabase cache and the global cache wrapper
+	// cache := cache.NewCache(supabaseClient)
 
 	// setup embedding dimension directly from environment
 	dimStr := os.Getenv("EMBEDDING_DIMENSION")

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"agent-core/internal/llm/configs"
-	"agent-core/internal/embedding"
 	"github.com/google/uuid"
 	"agent-core/internal/llm/utils"
 )
@@ -34,24 +33,6 @@ func GenerateExamsHandler(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil || len(req.Messages) == 0 {
 		utils.WriteJSONError(w, "Invalid or missing messages array", http.StatusBadRequest)
-		return
-	}
-
-	// --- Embed input for caching ---
-	combinedBytes, _ := json.Marshal(req.Messages)
-	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
-	if err != nil {
-		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
-		return
-	}
-	// key := string(combinedBytes)
-
-	cachedResponse, _, hit, err := supabaseClient.Check(embeddingVec)
-	if err != nil {
-	}
-	if hit {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(cachedResponse))
 		return
 	}
 

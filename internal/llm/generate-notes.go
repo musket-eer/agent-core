@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"agent-core/internal/llm/configs"
-	"agent-core/internal/embedding"
 	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
+	// "agent-core/internal/cache"
 
 	"github.com/google/uuid"
 )
@@ -81,28 +81,6 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Inject system + user messages
-	messages := []Message{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: string(userMessageBytes)},
-	}
-
-	// Generate embedding
-	combinedBytes, _ := json.Marshal(messages)
-	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
-	if err != nil {
-		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
-		return
-	}
-	// key := string(combinedBytes)
-	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
-	if hit {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(cachedResponse))
-		return
-	}
-
-
 	// LLM call
 	if llmClient == nil {
 		utils.WriteJSONError(w, "LLM client not initialized", http.StatusInternalServerError)
@@ -116,6 +94,24 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 			"prompt": promptStr,
 		},
 	}
+	// hash payload and check if in cache
+	// payloadBytes, err := json.Marshal(payload)
+	// if err != nil {
+	// 	utils.WriteJSONError(w, "Failed to marshal payload", http.StatusInternalServerError)
+	// 	return
+	// }
+	
+	// hash := cache.HashPayload(string(payloadBytes))
+	// cachedResp, hit, err := cache.CheckByPayload(hash)
+	// if err != nil {
+	// 	utils.WriteJSONError(w, "Failed to check cache", http.StatusInternalServerError)
+	// 	return
+	// }
+	// if hit {
+	// 	w.Header().Set("Content-Type", "application/json")
+	// 	w.Write([]byte(cachedResp))
+	// 	return
+	// }
 
 	// Log the payload being sent to LLM
 	rawResponse, err := llmClient.Call("/generate-notes", payload)

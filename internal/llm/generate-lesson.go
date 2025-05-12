@@ -3,7 +3,6 @@ package llm
 import (
 	"encoding/json"
 	"net/http"
-	"agent-core/internal/embedding"
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
@@ -33,9 +32,10 @@ type LessonMetadata struct {
 }
 
 type Activity struct {
-	ID     string `json:"id"`
-	Leader string `json:"leader"`
-	Title  string `json:"title"`
+	ID       string    `json:"id"`
+	Leader   string    `json:"leader"`
+	Title    string    `json:"title"`
+	Messages []Message `json:"messages"`
 }
 
 type LessonPlan struct {
@@ -72,24 +72,17 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	userMessage, _ := json.Marshal(lessonReq)
 	fullPrompt := systemPrompt + "\n" + string(userMessage)
 
-	// Generate embedding for caching
-	combined, _ := json.Marshal([]Message{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: string(userMessage)},
-	})
-	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combined)))
-	if err != nil {
-		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
-		return
-	}
-
-	// Check cache
-	cached, _, hit, _ := supabaseClient.Check(embeddingVec)
-	if hit {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(cached))
-		return
-	}
+	// Use hash-based cache: payload is fullPrompt
+	// cached, hit, err := supabaseClient.CheckByPayload(fullPrompt)
+	// if err != nil {
+	// 	utils.WriteJSONError(w, "Cache error", http.StatusInternalServerError)
+	// 	return
+	// }
+	// if hit {
+	// 	w.Header().Set("Content-Type", "application/json")
+	// 	w.Write([]byte(cached))
+	// 	return
+	// }
 
 	// Make LLM call
 	payload := map[string]interface{}{
@@ -123,6 +116,7 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 			ID:     uuid.New().String(),
 			Leader: leader,
 			Title:  title,
+			
 		})
 	}
 
@@ -149,8 +143,8 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cache final result (optional)
-	// _ = supabaseClient.CacheEmbedding(string(combined), embeddingVec, string(finalBytes))
+	// Cache final result
+	// _ = supabaseClient.CacheByPayload(fullPrompt, string(finalBytes))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)

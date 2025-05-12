@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"agent-core/internal/llm/configs"
-	"agent-core/internal/embedding"
 	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
 
@@ -65,26 +64,6 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	messages := []Message{
 		{Role: "system", Content: systemPrompt},
 		userMessage,
-	}
-
-	combinedBytes, _ := json.Marshal(messages)
-	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
-	if err != nil {
-		utils.WriteJSONError(w, "Failed to generate embedding", http.StatusInternalServerError)
-		return
-	}
-	// key := string(combinedBytes)
-
-	cachedResponse, _, hit, _ := supabaseClient.Check(embeddingVec)
-	if hit {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(cachedResponse))
-		return
-	}
-
-	if llmClient == nil {
-		utils.WriteJSONError(w, "LLM client not initialized", http.StatusInternalServerError)
-		return
 	}
 
 	payload := map[string]interface{}{

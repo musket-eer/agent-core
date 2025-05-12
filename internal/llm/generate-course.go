@@ -7,7 +7,6 @@ import (
 
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/prompt"
-	"agent-core/internal/embedding"
 	"agent-core/internal/llm/utils"
 
 	"github.com/google/uuid"
@@ -107,20 +106,9 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Embedding for cache key
 	combinedBytes, _ := json.Marshal(fullMessages)
-	embeddingVec, err := embedding.GetEmbedding(embedding.JSONStringWrapper(string(combinedBytes)))
-	if err != nil {
-		utils.WriteJSONError(w, "Failed to embed", http.StatusInternalServerError)
-		return
-	}
 
 	// Check cache
-	cached, _, hit, _ := supabaseClient.Check(embeddingVec)
-	if hit {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(cached))
-		return
-	}
-
+	
 	// Final prompt
 	finalPrompt := systemPrompt + "\n" + string(combinedBytes)
 	payload := map[string]interface{}{
@@ -129,7 +117,8 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		"temperature": cfg.Temperature,
 		"max_tokens":  cfg.MaxTokens,
 	}
-
+    
+	// TODO: Implement cache check using payload hash
 	response, err := llmClient.Call("/generate-course", payload)
 	if err != nil {
 		utils.WriteJSONError(w, "LLM call failed", http.StatusInternalServerError)
@@ -185,9 +174,7 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optionally: cache response
-	// _ = supabaseClient.CacheEmbedding(string(combinedBytes), embeddingVec, string(finalBytes))
-
+	// TODO:- Enter response into cache
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)
 }

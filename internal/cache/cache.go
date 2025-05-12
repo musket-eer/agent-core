@@ -13,43 +13,57 @@ package cache
 // THis will essentially wrap our llm service and add semantic caching to it.
 
 import (
-	"agent-core/internal/cache/supabaseclient"
+	"crypto/sha256"
+	"encoding/hex"
 	"sync"
+	"agent-core/internal/cache/supabaseclient"
 )
 
 type Cache struct {
-	Supabase *supabaseclient.SupabasePgvectorClient
-	// Optional: in-memory cache for quick access
+	Supabase *supabaseclient.SupabaseClient
 	memCache map[string]string
 	mu       sync.RWMutex
 }
 
+// HashPayload returns a SHA256 hash of the payload string
+func HashPayload(payload string) string {
+	h := sha256.New()
+	h.Write([]byte(payload))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 // NewCache creates a new Cache backed by Supabase and with optional in-memory map
-func NewCache(supabase *supabaseclient.SupabasePgvectorClient) *Cache {
+func NewCache(supabase *supabaseclient.SupabaseClient) *Cache {
 	return &Cache{
 		Supabase: supabase,
 		memCache: make(map[string]string),
 	}
 }
 
-// Check queries Supabase for the similarity score for a given query/embedding
-func (c *Cache) Check(query string, embedding []float64) (float64, string, bool, error) {
-	// Optionally check in-memory cache first
+// CheckByPayload checks cache by payload hash (in-memory first, then Supabase)
+func (c *Cache) CheckByPayload(payload string) (string, bool, error) {
+	hash := HashPayload(payload)
 	c.mu.RLock()
-	resp, found := c.memCache[query]
+	resp, found := c.memCache[hash]
 	c.mu.RUnlock()
 	if found {
-		return 1.0, resp, true, nil // Assume perfect similarity for in-memory
+		return resp, true, nil
 	}
-	// Check persistent cache (Supabase)
-	return c.Supabase.Check(query, embedding)
+	resp, hit, err := c.Supabase.CheckByHash(hash)
+	if hit && err == nil {
+		c.mu.Lock()
+		c.memCache[hash] = resp
+		c.mu.Unlock()
+	}
+	return resp, hit, err
 }
 
-// CacheEmbedding stores the embedding and response in both Supabase and memory
-func (c *Cache) CacheEmbedding(query string, embedding []float64, response string) error {
+// CacheByPayload stores the response for a payload hash in both Supabase and memory
+func (c *Cache) CacheByPayload(payload string, response string) error {
+	hash := HashPayload(payload)
 	c.mu.Lock()
-	c.memCache[query] = response
+	c.memCache[hash] = response
 	c.mu.Unlock()
-	return c.Supabase.CacheEmbedding(query, embedding, response)
+	return c.Supabase.CacheByHash(hash, response)
 }
 
