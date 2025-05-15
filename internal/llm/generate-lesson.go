@@ -2,15 +2,15 @@ package llm
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
+	"agent-core/internal/cache"
 
 	"github.com/google/uuid"
-
-)
-
+) // removed extra newlines
 // FrontendPayload represents the incoming structure
 type LessonRequest struct {
 	LessonTitle       string   `json:"lesson_title"`
@@ -21,8 +21,6 @@ type LessonRequest struct {
 	Interests         []string `json:"interests"`
 	CareerGoals       string   `json:"career_goals"`
 }
-
-
 
 type LessonMetadata struct {
 	Title      string   `json:"title"`
@@ -58,10 +56,20 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 
 	cfg, ok := configs.GetDeepseekConfig("/generate-lesson")
 	if !ok {
+		log.Printf("[GenerateLessonHandler] No config for /generate-lesson")
 		utils.WriteJSONError(w, "No config for generation", http.StatusInternalServerError)
 		return
 	}
-
+	log.Printf("[GenerateLessonHandler] Loaded config: %+v", cfg)
+	// Prepare cache key
+	cachePayload, _ := json.Marshal(lessonReq)
+	payloadStr := string(cachePayload)
+	cacheInstance := cache.Get()
+	if cached, found, _ := cacheInstance.CheckByPayload(payloadStr); found {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(cached)
+		return
+	}
 	systemPrompt, err := prompt.GetPrompt("lessonSequencePrompt")
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to load prompt", http.StatusInternalServerError)
@@ -70,28 +78,32 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Transform input into prompt
 	userMessage, _ := json.Marshal(lessonReq)
-	fullPrompt := systemPrompt + "\n" + string(userMessage)
-
-	// Use hash-based cache: payload is fullPrompt
-	// cached, hit, err := supabaseClient.CheckByPayload(fullPrompt)
-	// if err != nil {
-	// 	utils.WriteJSONError(w, "Cache error", http.StatusInternalServerError)
-	// 	return
-	// }
-	// if hit {
-	// 	w.Header().Set("Content-Type", "application/json")
-	// 	w.Write([]byte(cached))
-	// 	return
-	// }
 
 	// Make LLM call
 	payload := map[string]interface{}{
-		"model":       cfg.ModelId,
-		"input":       map[string]string{"prompt": fullPrompt},
-		"temperature": cfg.Temperature,
-		"max_tokens":  cfg.MaxTokens,
+		"model": cfg.ModelId,
+		"input": map[string]string{
+			"prompt": systemPrompt + "\n" + string(userMessage),
+		},
 	}
-	rawResponse, err := llmClient.Call("/generate-lesson", payload)
+	endpoint := "/generate-lesson"
+	config, ok := configs.GetDeepseekConfig(endpoint)
+	if !ok {
+		utils.WriteJSONError(w, "no config found for endpoint: "+endpoint, http.StatusInternalServerError)
+		return
+	}
+	clientName := config.ClientName
+	if clientName == "" {
+		clientName = "general" // fallback
+	}
+
+	client, err := GetLLMClient(clientName)
+	if err != nil {
+		utils.WriteJSONError(w, "failed to get client "+clientName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rawResponse, err := client.Call(endpoint, payload)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to call LLM", http.StatusInternalServerError)
 		return
@@ -116,7 +128,6 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 			ID:     uuid.New().String(),
 			Leader: leader,
 			Title:  title,
-			
 		})
 	}
 
@@ -142,10 +153,11 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to serialize lesson", http.StatusInternalServerError)
 		return
 	}
-
-	// Cache final result
-	// _ = supabaseClient.CacheByPayload(fullPrompt, string(finalBytes))
-
+	// Store response in cache
+	_ = cache.Get().CacheByPayload(payloadStr, finalBytes)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(finalBytes)
+	_, writeErr := w.Write(finalBytes)
+	if writeErr != nil {
+		utils.WriteJSONError(w, "Failed to write response", http.StatusInternalServerError)
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
+	"agent-core/internal/cache"
 
 	"github.com/google/uuid"
 )
@@ -108,7 +109,13 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 	combinedBytes, _ := json.Marshal(fullMessages)
 
 	// Check cache
-	
+	payloadStr := string(combinedBytes)
+	cacheInstance := cache.Get()
+	if cached, found, _ := cacheInstance.CheckByPayload(payloadStr); found {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cached))
+		return
+	}
 	// Final prompt
 	finalPrompt := systemPrompt + "\n" + string(combinedBytes)
 	payload := map[string]interface{}{
@@ -118,8 +125,25 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		"max_tokens":  cfg.MaxTokens,
 	}
     
-	// TODO: Implement cache check using payload hash
-	response, err := llmClient.Call("/generate-course", payload)
+	endpoint := "/generate-course"
+	config, ok := configs.GetDeepseekConfig(endpoint)
+	if !ok {
+		utils.WriteJSONError(w, "no config found for endpoint: "+endpoint, http.StatusInternalServerError)
+		return
+	}
+
+	clientName := config.ClientName
+	if clientName == "" {
+		clientName = "general" // fallback
+	}
+
+	client, err := GetLLMClient(clientName)
+	if err != nil {
+		utils.WriteJSONError(w, "failed to get client "+clientName, http.StatusInternalServerError)
+		return
+	}
+
+	response, err := client.Call(endpoint, payload)
 	if err != nil {
 		utils.WriteJSONError(w, "LLM call failed", http.StatusInternalServerError)
 		return
@@ -173,8 +197,8 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to serialize response", http.StatusInternalServerError)
 		return
 	}
-
-	// TODO:- Enter response into cache
+	// Store response in cache
+	_ = cache.Get().CacheByPayload(payloadStr, finalBytes)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)
 }

@@ -8,6 +8,7 @@ import (
 	"agent-core/internal/llm/configs"
 	"github.com/google/uuid"
 	"agent-core/internal/llm/utils"
+	"agent-core/internal/cache"
 )
 
 // GenerateExamRequest expects messages
@@ -43,6 +44,16 @@ func GenerateExamsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Prepare cache key
+	cachePayload, _ := json.Marshal(req.Messages)
+	payloadStr := string(cachePayload)
+	cacheInstance := cache.Get()
+	if cached, found, _ := cacheInstance.CheckByPayload(payloadStr); found {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cached))
+		return
+	}
+
 	// Inject **exam generation formatting rules** (system message)
 	systemMsg := Message{
 		Role: "system",
@@ -65,8 +76,25 @@ Respond with pure JSON — no extra text.`,
 		"max_tokens":  cfg.MaxTokens,
 	}
 
-	// --- LLM Call ---
-	response, err := llmClient.Call("/generate-exams", payload)
+	endpoint := "/generate-exams"
+	config, ok := configs.GetDeepseekConfig(endpoint)
+	if !ok {
+		utils.WriteJSONError(w, "no config found for endpoint: "+endpoint, http.StatusInternalServerError)
+		return
+	}
+
+		clientName := config.ClientName
+		if clientName == "" {
+			clientName = "general" // fallback
+		}
+
+		client, err := GetLLMClient(clientName)
+		if err != nil {
+			utils.WriteJSONError(w, "failed to get client "+clientName+": "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		rawResponse, err := client.Call(endpoint, payload)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to generate exams", http.StatusInternalServerError)
 		return
@@ -77,7 +105,7 @@ Respond with pure JSON — no extra text.`,
 		QuestionText string   `json:"question_text"`
 		Options      []string `json:"options"`
 	}
-	err = json.Unmarshal([]byte(response), &rawQuestions)
+	err = json.Unmarshal([]byte(rawResponse), &rawQuestions)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to parse exam JSON", http.StatusBadRequest)
 		return
@@ -101,14 +129,8 @@ Respond with pure JSON — no extra text.`,
 	}
 
 	finalBytes, _ := json.Marshal(final)
-
-	// --- Supabase Cache Store (disabled) ---
-	// err = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
-	// if err != nil {
-	// }
-
-	// --- Respond ---
-
+	// Store response in cache
+	_ = cache.Get().CacheByPayload(payloadStr, finalBytes)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)
 }

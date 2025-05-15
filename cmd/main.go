@@ -2,60 +2,58 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-
-	// "agent-core/internal/cache"
-	"agent-core/internal/embedding"
+	"agent-core/internal/cache"
 	"agent-core/internal/llm"
 	"agent-core/internal/llm/clients"
 
 	"github.com/joho/godotenv"
 	// "agent-core/internal/cache/supabaseclient"
+
 )
+var upstashClient *cache.UpstashClient
 
 func main() {
 	// Load .env file
 	if err := godotenv.Load(".env"); err != nil {
-		log.Printf("Warning: .env file not loaded: %v", err)
+		// .env file not loaded, but continue
 	}
+
+	// Initialize Upstash Redis client from environment variables
+	upstashRestUrl := os.Getenv("UPSTASH_REDIS_REST_URL")
+	upstashRestToken := os.Getenv("UPSTASH_REDIS_REST_TOKEN")
+	upstashClient = cache.NewUpstashClient(upstashRestUrl, upstashRestToken)
+	cache.Upstash = upstashClient
+	upstashCache := cache.NewCache(upstashClient)
+	cache.InitGlobal(upstashCache)
+
 	// Set up Deepseek client from environment variables
-	baseURL := os.Getenv("DEEPSEEK_URL")
-	apiKey := os.Getenv("DEEPSEEK_API_KEY")
-	deepseekClient := clients.NewDeepseekClient(apiKey, baseURL)
-	llm.LlmClientSet(deepseekClient)
+	baseURL := os.Getenv("DEEPSEEK_GENERAL_URL")
+	generalKey := os.Getenv("DEEPSEEK_GENERAL_API_KEY")
+	chatKey := os.Getenv("DEEPSEEK_CHAT_API_KEY")
+
+
+
+
+	// Register HTTP handlers
+
+// Create clients
+
+	generalClient := clients.NewDeepseekClient(generalKey, baseURL)
+	chatClient := clients.NewDeepseekClient(chatKey, baseURL)
+
+
+	// Register both clients globally
+	llm.RegisterLLMClient("general", generalClient)
+	llm.RegisterLLMClient("chat", chatClient)
 	
-
-	// supabaseUrl := os.Getenv("SUPABASE_API_URL")
-	// supabaseApiKey := os.Getenv("SUPABASE_SERVICE_ROLE_KEY")
-	// supabaseTableName := os.Getenv("SUPABASE_TABLE_NAME")
-	// // Set up global Supabase client
-	// // supabaseClient := supabaseclient.NewSupabaseClient(supabaseUrl, supabaseApiKey, supabaseTableName)
-
-	// // Set up supabase cache and the global cache wrapper
-	// cache := cache.NewCache(supabaseClient)
-
-	// setup embedding dimension directly from environment
-	dimStr := os.Getenv("EMBEDDING_DIMENSION")
-	if dimStr != "" {
-		var d int
-		_, err := fmt.Sscanf(dimStr, "%d", &d)
-		if err == nil && d > 0 {
-			embedding.GlobalEmbeddingConfig.Dimension = d
-			log.Printf("[Startup] Set embedding dimension: %d", d)
-		} else {
-			log.Printf("[Startup] Invalid EMBEDDING_DIMENSION value: %s", dimStr)
-		}
-	} else {
-		log.Printf("[Startup] EMBEDDING_DIMENSION not set, using default: %d", embedding.GlobalEmbeddingConfig.Dimension)
-	}
-
 	port := 8080
 	mux := llm.RegisterHandlers()
 	addr := fmt.Sprintf(":%d", port)
+
 	fmt.Printf("Server running at http://localhost%s\n", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		fmt.Printf("Server failed: %v\n", err)
 	}
 }

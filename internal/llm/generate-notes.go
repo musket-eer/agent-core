@@ -3,13 +3,14 @@ package llm
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
+	"agent-core/internal/cache"
 	"agent-core/internal/llm/configs"
-	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
-	// "agent-core/internal/cache"
+	"agent-core/internal/prompt"
 
 	"github.com/google/uuid"
 )
@@ -18,19 +19,18 @@ import (
 
 // TODO: - We want to maps this one to one with the frontend json
 type NotesPayLoad struct {
-	LessonTitle         string   `json:"lessonTitle"`
-	StudentProfile StudentProfile  `json:"studentProfile"`
-	CourseUnit     CourseUnit      `json:"courseUnit"`
+	LessonTitle    string         `json:"lessonTitle"`
+	StudentProfile StudentProfile `json:"studentProfile"`
+	CourseUnit     CourseUnit     `json:"courseUnit"`
 }
 
 type StudentProfile struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	EducationLevel string `json:"educationLevel"`
-	Interests []string `json:"interests"`
-	CareerGoals string `json:"careerGoals"`
+	Name           string   `json:"name"`
+	Email          string   `json:"email"`
+	EducationLevel string   `json:"educationLevel"`
+	Interests      []string `json:"interests"`
+	CareerGoals    string   `json:"careerGoals"`
 }
-
 
 // Response struct for notes
 type NotesResponse struct {
@@ -51,7 +51,6 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1048576) // limit to 1MB
 	rawBodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-	
 		utils.WriteJSONError(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
@@ -80,13 +79,6 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to load notes system prompt", http.StatusInternalServerError)
 		return
 	}
-
-	// LLM call
-	if llmClient == nil {
-		utils.WriteJSONError(w, "LLM client not initialized", http.StatusInternalServerError)
-		return
-	}
-
 	promptStr := systemPrompt + "\n" + string(userMessageBytes)
 	payload := map[string]interface{}{
 		"model": cfg.ModelId,
@@ -94,33 +86,41 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 			"prompt": promptStr,
 		},
 	}
-	// hash payload and check if in cache
-	// payloadBytes, err := json.Marshal(payload)
-	// if err != nil {
-	// 	utils.WriteJSONError(w, "Failed to marshal payload", http.StatusInternalServerError)
-	// 	return
-	// }
-	
-	// hash := cache.HashPayload(string(payloadBytes))
-	// cachedResp, hit, err := cache.CheckByPayload(hash)
-	// if err != nil {
-	// 	utils.WriteJSONError(w, "Failed to check cache", http.StatusInternalServerError)
-	// 	return
-	// }
-	// if hit {
-	// 	w.Header().Set("Content-Type", "application/json")
-	// 	w.Write([]byte(cachedResp))
-	// 	return
-	// }
 
-	// Log the payload being sent to LLM
-	rawResponse, err := llmClient.Call("/generate-notes", payload)
+	// Stringify the payload for hashing
+	payloadStr := string(userMessageBytes)
+	resp, hit, err := cache.Get().CheckByPayload(payloadStr)
+	if err != nil {
+		utils.WriteJSONError(w, "Cache error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if hit {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(resp)
+		return
+	}
+	endpoint := "/generate-notes"
+	config, ok := configs.GetDeepseekConfig(endpoint)
+	if !ok {
+		utils.WriteJSONError(w, "no config found for endpoint: "+endpoint, http.StatusInternalServerError)
+		return
+	}
+
+	clientName := config.ClientName
+	if clientName == "" {
+		clientName = "general" // fallback
+	}
+
+	client, err := GetLLMClient(clientName)
+	if err != nil {
+		utils.WriteJSONError(w, "failed to get client "+clientName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rawResponse, err := client.Call(endpoint, payload)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to generate notes", http.StatusInternalServerError)
 		return
 	}
-
-	// Clean response
 	cleaned := strings.TrimSpace(rawResponse)
 	if strings.HasPrefix(cleaned, "```markdown") {
 		cleaned = strings.TrimPrefix(cleaned, "```markdown")
@@ -132,23 +132,23 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		cleaned = strings.TrimSuffix(cleaned, "```")
 		cleaned = strings.TrimSpace(cleaned)
 	}
-
 	// Wrap final response
 	result := NotesResponse{
 		ID:    uuid.New().String(),
 		Notes: cleaned,
 	}
-
 	finalBytes, err := json.Marshal(result)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to serialize notes", http.StatusInternalServerError)
 		return
 	}
-
-	// Cache (disabled)
-	// _ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
+	// Store response in cache with payload hash as key (stringified payload, stringified response)
+	_ = cache.Get().CacheByPayload(payloadStr, finalBytes)
 
 	// Return
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(finalBytes)
+	_, writeErr := w.Write(finalBytes)
+	if writeErr != nil {
+		log.Printf("[GenerateNotesHandler] Failed to write response: %v", writeErr)
+	}
 }

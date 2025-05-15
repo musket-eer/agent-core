@@ -15,12 +15,24 @@ package cache
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"log"
 	"sync"
-	"agent-core/internal/cache/supabaseclient"
 )
+var Global *Cache
+
+func InitGlobal(c *Cache) {
+	Global = c
+}
+
+func Get() *Cache {
+	if Global == nil {
+		panic("cache.Global is not initialized")
+	}
+	return Global
+}
 
 type Cache struct {
-	Supabase *supabaseclient.SupabaseClient
+	Upstash *UpstashClient
 	memCache map[string]string
 	mu       sync.RWMutex
 }
@@ -29,41 +41,52 @@ type Cache struct {
 func HashPayload(payload string) string {
 	h := sha256.New()
 	h.Write([]byte(payload))
-	return hex.EncodeToString(h.Sum(nil))
+	hash := hex.EncodeToString(h.Sum(nil))
+	log.Printf("[Cache] Hashed payload to: %s", hash)
+	return hash
 }
 
-// NewCache creates a new Cache backed by Supabase and with optional in-memory map
-func NewCache(supabase *supabaseclient.SupabaseClient) *Cache {
+// NewCache creates a new Cache backed by upstash and with optional in-memory map
+func NewCache(upstash *UpstashClient) *Cache {
 	return &Cache{
-		Supabase: supabase,
+		Upstash: upstash,
 		memCache: make(map[string]string),
 	}
 }
 
-// CheckByPayload checks cache by payload hash (in-memory first, then Supabase)
-func (c *Cache) CheckByPayload(payload string) (string, bool, error) {
+// CheckByPayload checks cache by payload hash (in-memory first, then upstash)
+func (c *Cache) CheckByPayload(payload string) ([]byte, bool, error) {
 	hash := HashPayload(payload)
 	c.mu.RLock()
 	resp, found := c.memCache[hash]
 	c.mu.RUnlock()
 	if found {
-		return resp, true, nil
+		return []byte(resp), true, nil
 	}
-	resp, hit, err := c.Supabase.CheckByHash(hash)
+	hit, err := c.Upstash.Check(hash)
 	if hit && err == nil {
-		c.mu.Lock()
-		c.memCache[hash] = resp
-		c.mu.Unlock()
+		resp, err := c.Upstash.Retrieve(hash)
+		if err == nil {
+			c.mu.Lock()
+			c.memCache[hash] = string(resp)
+			c.mu.Unlock()
+			return resp, true, nil
+		}
+		return nil, false, err
 	}
-	return resp, hit, err
+	return nil, false, err
 }
 
 // CacheByPayload stores the response for a payload hash in both Supabase and memory
-func (c *Cache) CacheByPayload(payload string, response string) error {
+func (c *Cache) CacheByPayload(payload string, response []byte) error {
 	hash := HashPayload(payload)
+	log.Printf("[Cache] Caching response for hash: %s", hash)
 	c.mu.Lock()
-	c.memCache[hash] = response
+	c.memCache[hash] = string(response)
 	c.mu.Unlock()
-	return c.Supabase.CacheByHash(hash, response)
+	err := c.Upstash.Store(hash, response)
+	if err != nil {
+		return err
+	}
+	return nil
 }
-

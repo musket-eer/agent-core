@@ -7,8 +7,11 @@ import (
 )
 
 // RegisterHandlers returns a ServeMux with all Bedrock endpoints mapped.
+import "log"
+
 func logRequest(endpoint string, handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[logRequest] Incoming request: %s %s", r.Method, endpoint)
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")

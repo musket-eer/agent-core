@@ -9,6 +9,8 @@ import (
 
 	"agent-core/internal/llm/utils"
 	"agent-core/internal/prompt"
+	"agent-core/internal/llm/configs"
+	"agent-core/internal/cache"
 )
 
 type ChatAgentRequest struct {
@@ -68,6 +70,15 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 			return
 		}
 
+		// Prepare cache key
+		payloadStr := string(userDetailsJson)
+		cacheInstance := cache.Get()
+		if cached, found, _ := cacheInstance.CheckByPayload(payloadStr); found {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(cached)
+			return
+		}
+
 		fullPrompt := promptStr + "\n" + string(userDetailsJson)
 
 		payload := map[string]interface{}{
@@ -76,8 +87,25 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 				"prompt": fullPrompt,
 			},
 		}
+		endpoint := "/chat"
+		config, ok := configs.GetDeepseekConfig(endpoint)
+		if !ok {
+			utils.WriteJSONError(w, "no config found for endpoint: "+endpoint, http.StatusInternalServerError)
+			return
+		}
 
-		chatResp, err := llmClient.Call("/chat", payload)
+		clientName := config.ClientName
+		if clientName == "" {
+			clientName = "general" // fallback
+		}
+
+		client, err := GetLLMClient(clientName)
+		if err != nil {
+			utils.WriteJSONError(w, "failed to get client "+clientName+": "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		chatResp, err := client.Call(endpoint, payload)
 		if err != nil {
 			utils.WriteJSONError(w, "Failed to generate chat response", http.StatusInternalServerError)
 			return
@@ -99,7 +127,8 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 			utils.WriteJSONError(w, "Failed to serialize chat response", http.StatusInternalServerError)
 			return
 		}
-
+		// Store response in cache
+		_ = cache.Get().CacheByPayload(payloadStr, respBytes)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(respBytes)
 	}

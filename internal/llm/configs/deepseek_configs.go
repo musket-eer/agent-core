@@ -3,43 +3,69 @@ package configs
 
 // DeepseekConfig holds configuration for a Deepseek endpoint.
 type DeepseekConfig struct {
-	ModelId    string
-	Temperature  float64
-	MaxTokens    int
-	OtherParams  map[string]interface{}
+	ModelId     string
+	Temperature float64
+	MaxTokens   int
+	ClientName  string // NEW: "chat", "general", etc.
+	OtherParams map[string]interface{}
 }
+
 
 // DeepseekEndpointConfigs maps endpoint names to their DeepseekConfig.
 var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 	"/generate-lesson": {
-		ModelId:   "deepseek-chat",
+		ModelId:     "deepseek-chat",
 		Temperature: 0.7,
 		MaxTokens:   1024,
+		ClientName:  "general",
 	},
 	"/generate-course": {
-		ModelId:   "deepseek-chat",
+		ModelId:     "deepseek-chat",
 		Temperature: 0.6,
 		MaxTokens:   2048,
+		ClientName:  "general",
 	},
 	"/generate-notes": {
-		ModelId:   "deepseek-chat",
-		Temperature: 0.5,
+		ModelId:     "deepseek-chat",
+		Temperature: 1.0,
 		MaxTokens:   1024,
+		ClientName:  "general",
 	},
 	"/generate-exams": {
-		ModelId:   "deepseek-chat",
+		ModelId:     "deepseek-chat",
 		Temperature: 0.8,
 		MaxTokens:   1024,
+		ClientName:  "general",
 	},
 	"/generate-resources": {
-		ModelId:   "deepseek-chat",
+		ModelId:     "deepseek-chat",
 		Temperature: 0.4,
 		MaxTokens:   1024,
+		ClientName:  "general",
 	},
 	"/chat": {
-		ModelId:   "deepseek-chat",
+		ModelId:     "deepseek-chat",
 		Temperature: 0.9,
-		MaxTokens:   200,
+		MaxTokens:   100,
+		ClientName:  "chat",
+	},
+	"/professor-chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.5,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	"/librarian-chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.6,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	"/examiner-chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.6,
+		MaxTokens:   512,
+		ClientName:  "chat",
 	},
 }
 

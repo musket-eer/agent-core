@@ -8,6 +8,7 @@ import (
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
+	"agent-core/internal/cache"
 
 	"github.com/google/uuid"
 )
@@ -48,7 +49,15 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userMessage := req.Messages[1]
-
+	// Prepare cache key
+	cachePayload, _ := json.Marshal(req.Messages)
+	payloadStr := string(cachePayload)
+	cacheInstance := cache.Get()
+	if cached, found, _ := cacheInstance.CheckByPayload(payloadStr); found {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cached))
+		return
+	}
 	cfg, ok := configs.GetDeepseekConfig("/generate-resources")
 	if !ok {
 		utils.WriteJSONError(w, "No config for resource generation", http.StatusInternalServerError)
@@ -73,7 +82,26 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		"max_tokens":  cfg.MaxTokens,
 	}
 
-	rawResponse, err := llmClient.Call("/generate-resources", payload)
+	// TODO:- Hash Payload, check cache which wraps supabase, if hit return
+	endpoint := "/chat"
+	config, ok := configs.GetDeepseekConfig(endpoint)
+	if !ok {
+		utils.WriteJSONError(w, "no config found for endpoint: "+endpoint, http.StatusInternalServerError)
+		return
+	}
+
+	clientName := config.ClientName
+	if clientName == "" {
+		clientName = "general" // fallback
+	}
+
+	client, err := GetLLMClient(clientName)
+	if err != nil {
+		utils.WriteJSONError(w, "failed to get client "+clientName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rawResponse, err := client.Call(endpoint, payload)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to generate study resources", http.StatusInternalServerError)
 		return
@@ -119,11 +147,8 @@ func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to serialize resources", http.StatusInternalServerError)
 		return
 	}
-
-	// Cache (disabled)
-	// _ = supabaseClient.CacheEmbedding(key, embeddingVec, string(finalBytes))
-
-	// Return
+	// Store response in cache
+	_ = cache.Get().CacheByPayload(payloadStr, finalBytes)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)
 }
