@@ -2,16 +2,26 @@ version: '3.8'
 
 services:
   agent-core:
+    container_name: agent-core
     build: .
     ports:
       - "8080:8080"
     environment:
-      - DEEPSEEK_URL=${DEEPSEEK_URL}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - SUPABASE_URL=${SUPABASE_API_URL}
-      - SUPABASE_KEY=${SUPABASE_ANON_KEY}
+      - DEEPSEEK_GENERAL_URL=${DEEPSEEK_GENERAL_URL}
+      - DEEPSEEK_GENERAL_API_KEY=${DEEPSEEK_GENERAL_API_KEY}
+      - DEEPSEEK_CHAT_API_KEY=${DEEPSEEK_CHAT_API_KEY}
+      - UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
+      - UPSTASH_REDIS_URL=${UPSTASH_REDIS_URL}
+      - UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
     volumes:
       - ${PWD}/internal/llm/configs:/root/internal/llm/configs
       - ${PWD}/configs/prompts:/app/configs/prompts
       - ${PWD}/.env:/.env
     restart: unless-stopped
+    networks:
+      - web
+
+networks:
+  web:
+    name: web
+    external: true

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"log"
 	"os"
 	"agent-core/internal/cache"
 	"agent-core/internal/llm"
@@ -33,7 +34,7 @@ func main() {
 	generalKey := os.Getenv("DEEPSEEK_GENERAL_API_KEY")
 	chatKey := os.Getenv("DEEPSEEK_CHAT_API_KEY")
 
-
+	log.Printf("UPSTASH REST TOKEN %s", upstashRestToken)
 
 
 	// Register HTTP handlers

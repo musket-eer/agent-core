@@ -19,14 +19,17 @@ import (
 
 // TODO: - We want to maps this one to one with the frontend json
 type NotesPayLoad struct {
-	LessonTitle    string         `json:"lessonTitle"`
+	LessonData  LessonData		  `json:"lessonData"`
 	StudentProfile StudentProfile `json:"studentProfile"`
 	CourseUnit     CourseUnit     `json:"courseUnit"`
 }
 
+type LessonData struct {
+	LessonTitle    string   `json:"lessonTitle"`
+	LessonObjective string `json:"lessonObjective"`
+}
 type StudentProfile struct {
 	Name           string   `json:"name"`
-	Email          string   `json:"email"`
 	EducationLevel string   `json:"educationLevel"`
 	Interests      []string `json:"interests"`
 	CareerGoals    string   `json:"careerGoals"`
@@ -66,7 +69,6 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to serialize user message", http.StatusInternalServerError)
 		return
 	}
-
 	cfg, ok := configs.GetDeepseekConfig("/generate-notes")
 	if !ok {
 		utils.WriteJSONError(w, "No config for notes generation", http.StatusInternalServerError)
@@ -79,6 +81,7 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to load notes system prompt", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("WE GOT HERE");
 	promptStr := systemPrompt + "\n" + string(userMessageBytes)
 	payload := map[string]interface{}{
 		"model": cfg.ModelId,
@@ -116,6 +119,7 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "failed to get client "+clientName+": "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	rawResponse, err := client.Call(endpoint, payload)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to generate notes", http.StatusInternalServerError)
@@ -127,17 +131,21 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		cleaned = strings.TrimSuffix(cleaned, "```")
 		cleaned = strings.TrimSpace(cleaned)
 	}
+
 	if strings.HasPrefix(cleaned, "```") {
 		cleaned = strings.TrimPrefix(cleaned, "```")
 		cleaned = strings.TrimSuffix(cleaned, "```")
 		cleaned = strings.TrimSpace(cleaned)
 	}
+
+
 	// Wrap final response
 	result := NotesResponse{
 		ID:    uuid.New().String(),
 		Notes: cleaned,
 	}
 	finalBytes, err := json.Marshal(result)
+
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to serialize notes", http.StatusInternalServerError)
 		return
@@ -149,6 +157,5 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_, writeErr := w.Write(finalBytes)
 	if writeErr != nil {
-		log.Printf("[GenerateNotesHandler] Failed to write response: %v", writeErr)
 	}
 }

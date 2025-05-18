@@ -16,6 +16,7 @@ import (
 type RawCourseUnit struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	Objective string `json:"objective"`
 }
 
 type RawCourse struct {
@@ -28,11 +29,7 @@ type CourseUnit struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
-	Duration    int      `json:"duration"`
-	Objectives  []string `json:"objectives"`
-	Content     []string `json:"content"`
-	Exercises   []string `json:"exercises"`
-	Assessment  string   `json:"assessment"`
+	Objective  string `json:"objective"`
 }
 
 type CourseResponse struct {
@@ -43,7 +40,6 @@ type CourseResponse struct {
 	TotalDuration      int          `json:"totalDuration"`
 	WeeklyHours        int          `json:"weeklyHours"`
 	PriorKnowledge     []string     `json:"priorKnowledge"`
-	LearningObjectives []string     `json:"learningObjectives"`
 	Units              []CourseUnit `json:"units"`
 	CreatedAt          string       `json:"createdAt"`
 	UpdatedAt          string       `json:"updatedAt"`
@@ -62,18 +58,21 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		Title              string   `json:"title"`
 		Description        string   `json:"description"`
 		Difficulty         string   `json:"difficulty"`
-		TotalDuration      int      `json:"totalDuration"`
-		WeeklyHours        int      `json:"weeklyHours"`
-		PriorKnowledge     []string `json:"priorKnowledge"`
-		LearningObjectives []string `json:"learningObjectives"`
+		TotalDuration      int      `json:"total_duration"`
+		WeeklyHours        int      `json:"weekly_hours"`
+		PriorKnowledge     []string `json:"prior_knowledge"`
+		LearningObjectives []string `json:"learning_objectives"`
 	}
 	type ProfileData struct {
 		Name  string `json:"name"`
-		Email string `json:"email"`
+		EducationLevel string `json:"education_level"`
+		Interests []string `json:"interests"`
+		CareerGoals []string `json:"career_goals"`
+
 	}
 	type CoursePayLoad struct {
 		Course      Course      `json:"course"`
-		ProfileData ProfileData `json:"profileData"`
+		ProfileData ProfileData `json:"profile_data"`
 	}
 
 	var req CoursePayLoad
@@ -168,11 +167,7 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 			ID:          uuid.New().String(),
 			Title:       u.Title,
 			Description: u.Description,
-			Duration:    90, // default 90 minutes
-			Objectives:  []string{"Understand key concepts", "Apply in real-world"},
-			Content:     []string{"TBD"},
-			Exercises:   []string{"TBD"},
-			Assessment:  "TBD",
+			Objective:  u.Objective,
 		})
 	}
 
@@ -184,7 +179,6 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		TotalDuration:      req.Course.TotalDuration,
 		WeeklyHours:        req.Course.WeeklyHours,
 		PriorKnowledge:     req.Course.PriorKnowledge,
-		LearningObjectives: req.Course.LearningObjectives,
 		Units:              enrichedUnits,
 		CreatedAt:          now,
 		UpdatedAt:          now,

@@ -11,9 +11,9 @@ Each field must reflect the user's input. Be concise and goal-aligned.
   "title": "string",
   "description": "string",
   "units": [
-    { "title": "string", "description": "string" }
+    { "title": "string", "description": "string", objective: string}
   ]
 }
 ```
 
-Units: 5–10. Title max 5 words. Descriptions: course (≤300 chars), unit (≤150).
+Units: 5–10. Title max 5 words. Objective max 5 words Descriptions: course (≤300 chars), unit (≤150). 

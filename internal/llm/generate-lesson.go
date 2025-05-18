@@ -2,7 +2,6 @@ package llm
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/prompt"
@@ -10,23 +9,25 @@ import (
 	"agent-core/internal/cache"
 
 	"github.com/google/uuid"
-) // removed extra newlines
-// FrontendPayload represents the incoming structure
+)
+
 type LessonRequest struct {
-	LessonTitle       string   `json:"lesson_title"`
-	LessonDescription string   `json:"lesson_description"`
-	LessonObjectives  []string `json:"lesson_objectives"`
-	LessonSize        int      `json:"lesson_size"`
-	EducationLevel    string   `json:"education_level"`
+	courseTitle       string   `json:"courseTitle"`
+	CourseDescription string   `json:"courseDescription"`
+	Difficulty        string    `json:"Difficulty"`
+
+
+	LessonTitle       string   `json:"lessonTitle"`
+	LessonObjective   string   `json:"lessonObjective"`
+
+	EducationLevel    string   `json:"educationLevel"`
 	Interests         []string `json:"interests"`
-	CareerGoals       string   `json:"career_goals"`
+	CareerGoals       string   `json:"careerGoals"`
 }
 
 type LessonMetadata struct {
 	Title      string   `json:"title"`
-	Objectives []string `json:"objectives"`
-	Duration   string   `json:"duration"`
-	Difficulty string   `json:"difficulty"`
+	Objective  string `json:"objectives"`
 }
 
 type Activity struct {
@@ -56,11 +57,9 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 
 	cfg, ok := configs.GetDeepseekConfig("/generate-lesson")
 	if !ok {
-		log.Printf("[GenerateLessonHandler] No config for /generate-lesson")
 		utils.WriteJSONError(w, "No config for generation", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[GenerateLessonHandler] Loaded config: %+v", cfg)
 	// Prepare cache key
 	cachePayload, _ := json.Marshal(lessonReq)
 	payloadStr := string(cachePayload)
@@ -125,7 +124,7 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 		leader := utils.Trim(parts[0])
 		title := utils.Trim(parts[1])
 		activities = append(activities, Activity{
-			ID:     uuid.New().String(),
+			ID: "segment_" + uuid.New().String(),
 			Leader: leader,
 			Title:  title,
 		})
@@ -134,11 +133,8 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 	// Synthesize lesson metadata from request
 	metadata := LessonMetadata{
 		Title:      lessonReq.LessonTitle,
-		Objectives: lessonReq.LessonObjectives,
-		Duration:   "1 hour", // or based on LessonSize
-		Difficulty: lessonReq.EducationLevel,
+		Objective: lessonReq.LessonObjective,
 	}
-
 	// Compose final lesson
 	lesson := LessonPlan{
 		LessonMetadata: metadata,
