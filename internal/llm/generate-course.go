@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
-
-	"agent-core/internal/llm/configs"
-	"agent-core/internal/prompt"
-	"agent-core/internal/llm/utils"
 	"agent-core/internal/cache"
+	"agent-core/internal/llm/configs"
+	"agent-core/internal/llm/utils"
+	"agent-core/internal/prompt"
 
 	"github.com/google/uuid"
 )
@@ -17,6 +16,8 @@ type RawCourseUnit struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Objective string `json:"objective"`
+	Assessment string `json:"assessment"`
+
 }
 
 type RawCourse struct {
@@ -30,6 +31,7 @@ type CourseUnit struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	Objective  string `json:"objective"`
+	Assessment string `json:"assessment"`
 }
 
 type CourseResponse struct {
@@ -168,6 +170,7 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 			Title:       u.Title,
 			Description: u.Description,
 			Objective:  u.Objective,
+			Assessment: u.Assessment,
 		})
 	}
 

@@ -14,7 +14,7 @@ import (
 type LessonRequest struct {
 	courseTitle       string   `json:"courseTitle"`
 	CourseDescription string   `json:"courseDescription"`
-	Difficulty        string    `json:"Difficulty"`
+	Difficulty        string    `json:"difficulty"`
 
 
 	LessonTitle       string   `json:"lessonTitle"`
