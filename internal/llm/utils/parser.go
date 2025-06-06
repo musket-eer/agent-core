@@ -1,18 +1,15 @@
 package utils
 
 import (
-	"log"
 	"regexp"
 	"strings"
 )
 
 // ParseLessonData parses lesson data text into structured data
 func ParseLessonData(text string) map[string]interface{} {
-	log.Printf("[ParseLessonData] Raw input: %q", text)
 	// Remove code blocks markers and trim
 	text = regexp.MustCompile("```").ReplaceAllString(text, "")
 	text = strings.TrimSpace(text)
-	log.Printf("[ParseLessonData] Cleaned input: %q", text)
 	
 	// Split text into sections and filter empty lines
 	sections := []string{}
@@ -22,7 +19,6 @@ func ParseLessonData(text string) map[string]interface{} {
 			sections = append(sections, trimmed)
 		}
 	}
-	log.Printf("[ParseLessonData] Sections: %+v", sections)
 	
 	// Extract metadata
 	lessonMetadata := map[string]interface{}{
@@ -32,7 +28,6 @@ func ParseLessonData(text string) map[string]interface{} {
 	if len(sections) > 0 {
 		lessonMetadata["title"] = sections[0]
 	}
-	log.Printf("[ParseLessonData] Metadata after title: %+v", lessonMetadata)
 	
 	if len(sections) > 3 {
 		objectives := sections[1:4]
@@ -40,12 +35,10 @@ func ParseLessonData(text string) map[string]interface{} {
 	} else {
 		lessonMetadata["objectives"] = []string{}
 	}
-	log.Printf("[ParseLessonData] Metadata after objectives: %+v", lessonMetadata)
 	
 	if len(sections) > 4 {
 		lessonMetadata["duration"] = sections[4]
 	}
-	log.Printf("[ParseLessonData] Final metadata: %+v", lessonMetadata)
 	
 	if len(sections) > 5 {
 		lessonMetadata["difficulty"] = sections[5]

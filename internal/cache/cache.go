@@ -15,7 +15,6 @@ package cache
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
 	"sync"
 )
 var Global *Cache
@@ -42,7 +41,6 @@ func HashPayload(payload string) string {
 	h := sha256.New()
 	h.Write([]byte(payload))
 	hash := hex.EncodeToString(h.Sum(nil))
-	log.Printf("[Cache] Hashed payload to: %s", hash)
 	return hash
 }
 
@@ -80,7 +78,6 @@ func (c *Cache) CheckByPayload(payload string) ([]byte, bool, error) {
 // CacheByPayload stores the response for a payload hash in both Supabase and memory
 func (c *Cache) CacheByPayload(payload string, response []byte) error {
 	hash := HashPayload(payload)
-	log.Printf("[Cache] Caching response for hash: %s", hash)
 	c.mu.Lock()
 	c.memCache[hash] = string(response)
 	c.mu.Unlock()

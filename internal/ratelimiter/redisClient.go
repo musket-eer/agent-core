@@ -26,8 +26,6 @@ func InitRedis() {
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
-
-	log.Println("✅ Redis connection established")
 }
 
 // GetClient provides a direct handle to the initialized client

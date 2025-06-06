@@ -13,6 +13,13 @@ import (
 	"agent-core/internal/cache"
 )
 
+type StudentProfile struct {
+	Name           string   `json:"name"`
+	EducationLevel string   `json:"educationLevel"`
+	Interests      []string `json:"interests"`
+	CareerGoals    string   `json:"careerGoals"`
+}
+
 type ChatAgentRequest struct {
 	Title          string `json:"lessonTitle"`
 	Objective      string `json:"objective"`

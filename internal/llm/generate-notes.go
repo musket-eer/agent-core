@@ -3,7 +3,6 @@ package llm
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -19,20 +18,20 @@ import (
 
 // TODO: - We want to maps this one to one with the frontend json
 type NotesPayLoad struct {
-	LessonData  LessonData		  `json:"lessonData"`
-	StudentProfile StudentProfile `json:"studentProfile"`
-	CourseUnit     CourseUnit     `json:"courseUnit"`
-}
+	// course parameters
+	CourseTitle       string   `json:"courseTitle"`
+	CourseDescription string   `json:"courseDescription"`
+	Difficulty        string    `json:"courseDifficultyLevel"`
 
-type LessonData struct {
-	LessonTitle    string   `json:"lessonTitle"`
-	LessonObjective string `json:"lessonObjective"`
-}
-type StudentProfile struct {
-	Name           string   `json:"name"`
-	EducationLevel string   `json:"educationLevel"`
-	Interests      []string `json:"interests"`
-	CareerGoals    string   `json:"careerGoals"`
+	// lesson parameters
+	LessonTitle       string   `json:"lessonTitle"`
+	LessonObjective   string   `json:"lessonObjective"`
+	LessonAssessment string    `json:"lessonAssessment"`
+
+	// profile parameters
+	EducationLevel    string   `json:"educationLevel"`
+	Interests         []string `json:"interests"`
+	CareerGoals       string   `json:"careerGoals"`
 }
 
 // Response struct for notes
@@ -81,7 +80,6 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, "Failed to load notes system prompt", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("WE GOT HERE");
 	promptStr := systemPrompt + "\n" + string(userMessageBytes)
 	payload := map[string]interface{}{
 		"model": cfg.ModelId,

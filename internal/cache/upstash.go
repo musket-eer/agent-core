@@ -3,7 +3,6 @@ package cache
 import (
 	"bytes"
 	"encoding/json"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -81,11 +80,7 @@ func (u *UpstashClient) Retrieve(key string) ([]byte, error) {
 		return nil, err
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(respObj.Result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode base64: %w", err)
-	}
-	return decoded, nil
+		return []byte(respObj.Result), nil
 }
 
 // Check returns true if key exists in Upstash

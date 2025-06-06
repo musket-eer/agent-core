@@ -2,7 +2,6 @@ package prompt
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +61,6 @@ func LoadPrompts() error {
 		for _, required := range requiredPrompts {
 			if _, ok := promptStore[required]; !ok {
 				loadErr = fmt.Errorf("🚨 required prompt '%s' not found in %s", required, promptDir)
-				log.Println(loadErr)
 				return
 			}
 		}

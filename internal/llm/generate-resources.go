@@ -4,19 +4,33 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-
+	"io"
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/prompt"
 	"agent-core/internal/llm/utils"
 	"agent-core/internal/cache"
+	"agent-core/internal/videos"
 
 	"github.com/google/uuid"
 )
 
-type ResourcesPayload struct {
-	Messages []Message `json:"messages"`
-}
 
+type ResourcesPayLoad struct {
+	// course parameters
+	courseTitle       string   `json:"courseTitle"`
+	CourseDescription string   `json:"courseDescription"`
+	Difficulty        string    `json:"difficulty"`
+
+	// lesson parameters
+	LessonTitle       string   `json:"lessonTitle"`
+	LessonObjective   string   `json:"lessonObjective"`
+	LessonAssessment string    `json:"lessonAssessment"`
+
+	// profile parameters
+	EducationLevel    string   `json:"educationLevel"`
+	Interests         []string `json:"interests"`
+	CareerGoals       string   `json:"careerGoals"`
+}
 // Resource object
 type Resource struct {
 	Title       string `json:"title"`
@@ -30,125 +44,133 @@ type ResourcesResponse struct {
 	Resources []Resource `json:"resources"`
 }
 
-// Handler for /generate-study-resources
 func GenerateResourcesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		utils.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var req ResourcesPayload
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
+	var resourcesReq ResourcesPayLoad
+	r.Body = http.MaxBytesReader(w, r.Body, 1048576) // limit to 1MB
+	rawBodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	if err := json.Unmarshal(rawBodyBytes, &resourcesReq); err != nil {
+		utils.WriteJSONError(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
-	if len(req.Messages) < 2 {
-		utils.WriteJSONError(w, "Messages array must include resource context.", http.StatusBadRequest)
+	userMessageBytes, err := json.Marshal(resourcesReq)
+	if err != nil {
+		utils.WriteJSONError(w, "Failed to serialize user message", http.StatusInternalServerError)
 		return
 	}
-
-	userMessage := req.Messages[1]
-	// Prepare cache key
-	cachePayload, _ := json.Marshal(req.Messages)
-	payloadStr := string(cachePayload)
-	cacheInstance := cache.Get()
-	if cached, found, _ := cacheInstance.CheckByPayload(payloadStr); found {
+	payloadStr := string(userMessageBytes)
+	if resp, hit, _ := cache.Get().CheckByPayload(payloadStr); hit {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(cached))
+		w.Write(resp)
 		return
 	}
+
 	cfg, ok := configs.GetDeepseekConfig("/generate-resources")
 	if !ok {
-		utils.WriteJSONError(w, "No config for resource generation", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "No config for resources generation", http.StatusInternalServerError)
 		return
 	}
 
 	systemPrompt, err := prompt.GetPrompt("librarianResourcesPrompt")
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to load resource system prompt", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to load resources system prompt", http.StatusInternalServerError)
 		return
 	}
 
-	messages := []Message{
-		{Role: "system", Content: systemPrompt},
-		userMessage,
-	}
-
+	promptStr := systemPrompt + "\n" + string(userMessageBytes)
 	payload := map[string]interface{}{
-		"model":       cfg.ModelId,
-		"messages":    messages,
-		"temperature": cfg.Temperature,
-		"max_tokens":  cfg.MaxTokens,
+		"model": cfg.ModelId,
+		"input": map[string]string{
+			"prompt": promptStr,
+		},
 	}
 
-	// TODO:- Hash Payload, check cache which wraps supabase, if hit return
-	endpoint := "/chat"
-	config, ok := configs.GetDeepseekConfig(endpoint)
-	if !ok {
-		utils.WriteJSONError(w, "no config found for endpoint: "+endpoint, http.StatusInternalServerError)
-		return
-	}
 
-	clientName := config.ClientName
+	clientName := cfg.ClientName
+
 	if clientName == "" {
-		clientName = "general" // fallback
+		clientName = "general"
 	}
-
 	client, err := GetLLMClient(clientName)
 	if err != nil {
 		utils.WriteJSONError(w, "failed to get client "+clientName+": "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	rawResponse, err := client.Call(endpoint, payload)
+	rawResponse, err := client.Call("/generate-resources", payload)
 	if err != nil {
-		utils.WriteJSONError(w, "Failed to generate study resources", http.StatusInternalServerError)
+		utils.WriteJSONError(w, "Failed to generate search query", http.StatusInternalServerError)
 		return
 	}
 
+	// Clean up Markdown fences
 	cleaned := strings.TrimSpace(rawResponse)
-	if strings.HasPrefix(cleaned, "```json") {
-		cleaned = strings.TrimPrefix(cleaned, "```json")
-		cleaned = strings.TrimSuffix(cleaned, "```")
-		cleaned = strings.TrimSpace(cleaned)
-	}
-	if strings.HasPrefix(cleaned, "```") {
-		cleaned = strings.TrimPrefix(cleaned, "```")
-		cleaned = strings.TrimSuffix(cleaned, "```")
-		cleaned = strings.TrimSpace(cleaned)
-	}
+	cleaned = strings.TrimPrefix(cleaned, "```json")
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
 
-	// Parse LLM output
-	var parsed []map[string]interface{}
-	if err := json.Unmarshal([]byte(cleaned), &parsed); err != nil {
-		utils.WriteJSONError(w, "Failed to parse study resources response", http.StatusBadRequest)
-		return
-	}
+	// Parse plain text list
+	lines := strings.Split(cleaned, "\n")
+	resources := []Resource{}
+	var current Resource
+	fieldCount := 0
 
-	// Map parsed into Resource struct
-	resources := make([]Resource, 0, len(parsed))
-	for _, item := range parsed {
-		res := Resource{
-			Title:       item["title"].(string),
-			Description: item["description"].(string),
-			Link:        item["link"].(string),
-			ID:          uuid.New().String(),
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "Title:"):
+			if fieldCount == 3 {
+				current.ID = uuid.New().String()
+				resources = append(resources, current)
+				current = Resource{}
+			}
+			current.Title = strings.TrimSpace(strings.TrimPrefix(line, "Title:"))
+			fieldCount = 1
+		case strings.HasPrefix(line, "Description:"):
+			current.Description = strings.TrimSpace(strings.TrimPrefix(line, "Description:"))
+			fieldCount = 2
+		case strings.HasPrefix(line, "Link:"):
+			current.Link = strings.TrimSpace(strings.TrimPrefix(line, "Link:"))
+			fieldCount = 3
 		}
-		resources = append(resources, res)
+	}
+	if fieldCount == 3 {
+		current.ID = uuid.New().String()
+		resources = append(resources, current)
 	}
 
-	final := ResourcesResponse{
-		Resources: resources,
+	// 🔍 YouTube search
+	searchQuery := rawResponse
+	youtubeVideos, err := videos.GlobalClient.SearchVideos(searchQuery, 3)
+	if err == nil {
+		for _, v := range youtubeVideos {
+			resources = append(resources, Resource{
+				Title:       v.Title,
+				Description: "YouTube Video",
+				Link:        v.EmbedURL,
+				ID:          uuid.New().String(),
+			})
+		}
 	}
 
+	final := ResourcesResponse{Resources: resources}
 	finalBytes, err := json.Marshal(final)
 	if err != nil {
 		utils.WriteJSONError(w, "Failed to serialize resources", http.StatusInternalServerError)
 		return
 	}
-	// Store response in cache
 	_ = cache.Get().CacheByPayload(payloadStr, finalBytes)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(finalBytes)
 }

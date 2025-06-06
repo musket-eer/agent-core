@@ -12,14 +12,17 @@ import (
 )
 
 type LessonRequest struct {
-	courseTitle       string   `json:"courseTitle"`
+	// course parameters
+	CourseTitle       string   `json:"courseTitle"`
 	CourseDescription string   `json:"courseDescription"`
-	Difficulty        string    `json:"difficulty"`
+	CourseDifficultyLevel        string    `json:"difficulty"`
 
-
+	// lesson parameters
 	LessonTitle       string   `json:"lessonTitle"`
 	LessonObjective   string   `json:"lessonObjective"`
+	LessonAssessment string    `json:"lessonAssessment"`
 
+	// profile parameters
 	EducationLevel    string   `json:"educationLevel"`
 	Interests         []string `json:"interests"`
 	CareerGoals       string   `json:"careerGoals"`
@@ -28,12 +31,14 @@ type LessonRequest struct {
 type LessonMetadata struct {
 	Title      string   `json:"title"`
 	Objective  string `json:"objectives"`
+	Assessment string `json"assessment"`
 }
 
 type Activity struct {
 	ID       string    `json:"id"`
 	Leader   string    `json:"leader"`
 	Title    string    `json:"title"`
+	Objective string   `json:"objective"`
 	Messages []Message `json:"messages"`
 }
 
@@ -117,16 +122,19 @@ func GenerateLessonHandler(w http.ResponseWriter, r *http.Request) {
 
 	activities := make([]Activity, 0, 10)
 	for _, line := range lines {
+
 		parts := utils.SplitByPipe(line)
-		if len(parts) != 2 {
+		if len(parts) < 2 {
 			continue
 		}
 		leader := utils.Trim(parts[0])
 		title := utils.Trim(parts[1])
+		objective := utils.Trim(parts[2])
 		activities = append(activities, Activity{
-			ID: "segment_" + uuid.New().String(),
+			ID: uuid.New().String(),
 			Leader: leader,
 			Title:  title,
+			Objective: objective,
 		})
 	}
 
