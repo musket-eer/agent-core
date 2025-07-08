@@ -48,9 +48,18 @@ func main() {
 	generalClient := clients.NewDeepseekClient(generalKey, baseURL)
 	chatClient := clients.NewDeepseekClient(chatKey, baseURL)
 
-	// Register both LLM clients globally
+	// Create Gemini clients
+	geminiApiKey := os.Getenv("GEMINI_API_KEY")
+	geminiBaseURL := os.Getenv("GEMINI_BASE_URL")
+	log.Printf("🔐 GEMINI API KEY: %s", geminiApiKey)
+	geminiGeneralClient := clients.NewGeminiClient(geminiApiKey, geminiBaseURL)
+	geminiChatClient := clients.NewGeminiClient(geminiApiKey, geminiBaseURL)
+
+	// Register all LLM clients globally
 	llm.RegisterLLMClient("general", generalClient)
 	llm.RegisterLLMClient("chat", chatClient)
+	llm.RegisterLLMClient("gemini-general", geminiGeneralClient)
+	llm.RegisterLLMClient("gemini-chat", geminiChatClient)
 
 	// Start HTTP server
 	port := 8080

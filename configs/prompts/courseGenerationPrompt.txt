@@ -27,18 +27,19 @@ generate a personalized, rigorous course plan that:
 📥 Inputs (available to you):
 
 **Course Form Input**
-- Title: {{course_title}}
-- Vision: {{learning_vision}}
-- Goals: {{goals}} (comma-separated)
-- Prior Knowledge: {{prior_knowledge}} (comma-separated)
-- Difficulty: {{difficulty}}
-- Weekly Time: {{weekly_hours}} hours
-- Lesson Count: {{lesson_count}}
-- Reference Books: {{reference_books}}
+- Title: {{title}}
+- Description: {{title}}
+- Difficulty: {{difficultyLevel}}
+- WeeklyHours: {{weeklyHours}} hours
+- PriorKnowledge : {{priorKnowledge}}
+- LearningObjectives: {{objectives}}
+- ReferenceBooks {{referenceBooks}}
+- Lesson Count: {{lessons}}
 
 **Student Profile**
-- Education Level: {{education_level}}
-- Career Goals: {{career_goals}} (comma-separated)
+- Name: {{name}}
+- Education Level: {{educationLevel}}
+- Career Goals: {{careerGoals}} (comma-separated)
 - Interests: {{interests}} (comma-separated)
 
 ---
@@ -49,6 +50,7 @@ generate a personalized, rigorous course plan that:
 {
   "title": "string (≤5 words)",
   "description": "string (≤300 chars)",
+  "referenceBooks: " [] string,
   "units": [
     {
       "title": "string (≤5 words)",

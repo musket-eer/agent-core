@@ -3,6 +3,7 @@ package llm
 import (
 	"encoding/json"
 	"net/http"
+	"log"
 	"time"
 	"agent-core/internal/cache"
 	"agent-core/internal/llm/configs"
@@ -24,11 +25,12 @@ type RawCourse struct {
 	Title       string         `json:"title"`
 	Description string         `json:"description"`
 	Units       []RawCourseUnit `json:"units"`
+	ReferenceBooks []string      `json:"referenceBooks"`
 }
 
 type CourseUnit struct {
 	ID          string   `json:"id"`
-	Title       string   `json:"title"`
+	Title       string   `json:"lessonTitle"`
 	Description string   `json:"description"`
 	Objective  string `json:"objective"`
 	Assessment string `json:"assessment"`
@@ -38,8 +40,7 @@ type CourseResponse struct {
 	ID                 string       `json:"id"`
 	Title              string       `json:"title"`
 	Description        string       `json:"description"`
-	Difficulty         string       `json:"difficulty"`
-	TotalDuration      int          `json:"totalDuration"`
+	Difficulty         string       `json:"difficultyLevel"`
 	WeeklyHours        int          `json:"weeklyHours"`
 	PriorKnowledge     []string     `json:"priorKnowledge"`
 	Units              []CourseUnit `json:"units"`
@@ -47,6 +48,9 @@ type CourseResponse struct {
 	UpdatedAt          string       `json:"updatedAt"`
 	Progress           int          `json:"progress"`
 	CurrentLessonIndex int          `json:"currentLessonIndex"`
+	Lessons            int          `json:"lessons"`
+	ReferenceBooks   []string        `json:"referenceBooks`
+
 }
 
 func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
@@ -59,22 +63,23 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 	type Course struct {
 		Title              string   `json:"title"`
 		Description        string   `json:"description"`
-		Difficulty         string   `json:"difficulty"`
-		TotalDuration      int      `json:"total_duration"`
-		WeeklyHours        int      `json:"weekly_hours"`
-		PriorKnowledge     []string `json:"prior_knowledge"`
-		LearningObjectives []string `json:"learning_objectives"`
+		Difficulty         string   `json:"difficultyLevel"`
+		WeeklyHours        int      `json:"weeklyHours"`
+		PriorKnowledge     []string `json:"priorKnowledge"`
+		LearningObjectives []string `json:"objectives"`
+		ReferenceBooks []string `json:"referenceBooks"`
+		Lessons int `json:"lessons"`
 	}
 	type ProfileData struct {
 		Name  string `json:"name"`
-		EducationLevel string `json:"education_level"`
+		EducationLevel string `json:"educationLevel"`
 		Interests []string `json:"interests"`
-		CareerGoals []string `json:"career_goals"`
+		CareerGoals []string `json:"careerGoals"`
 
 	}
 	type CoursePayLoad struct {
 		Course      Course      `json:"course"`
-		ProfileData ProfileData `json:"profile_data"`
+		ProfileData ProfileData `json:"profileData"`
 	}
 
 	var req CoursePayLoad
@@ -151,7 +156,6 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cleaned := utils.ExtractJsonFromCodeBlock(response)
-
 	// Parse the raw structure from LLM
 	var raw RawCourse
 	if err := json.Unmarshal([]byte(cleaned), &raw); err != nil {
@@ -165,6 +169,7 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 
 	var enrichedUnits []CourseUnit
 	for _, u := range raw.Units {
+		log.Printf("Enriched Unit Title: %s", u.Title)
 		enrichedUnits = append(enrichedUnits, CourseUnit{
 			ID:          uuid.New().String(),
 			Title:       u.Title,
@@ -179,7 +184,6 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		Title:              raw.Title,
 		Description:        raw.Description,
 		Difficulty:         req.Course.Difficulty,
-		TotalDuration:      req.Course.TotalDuration,
 		WeeklyHours:        req.Course.WeeklyHours,
 		PriorKnowledge:     req.Course.PriorKnowledge,
 		Units:              enrichedUnits,
@@ -187,6 +191,9 @@ func GenerateCourseHandler(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:          now,
 		Progress:           0,
 		CurrentLessonIndex: 0,
+		Lessons: len(enrichedUnits),
+		ReferenceBooks: raw.ReferenceBooks,
+
 	}
 
 	finalBytes, err := json.Marshal(parsed)
