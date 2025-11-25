@@ -3,9 +3,9 @@ package llm
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
-	"log"
 
 	"agent-core/internal/cache"
 	"agent-core/internal/llm/configs"
@@ -15,24 +15,26 @@ import (
 	"github.com/google/uuid"
 )
 
+// Add another datapoint for extracting notes instructions
+
 // FrontendPayload expects model, messages, temperature
 
 // TODO: - We want to maps this one to one with the frontend json
 type NotesPayLoad struct {
 	// course parameters
-	CourseTitle       string   `json:"courseTitle"`
-	CourseDescription string   `json:"courseDescription"`
-	Difficulty        string    `json:"courseDifficultyLevel"`
+	CourseTitle       string `json:"courseTitle"`
+	CourseDescription string `json:"courseDescription"`
+	Difficulty        string `json:"courseDifficultyLevel"`
 
 	// lesson parameters
-	LessonTitle       string   `json:"lessonTitle"`
-	LessonObjective   string   `json:"lessonObjective"`
-	LessonAssessment string    `json:"lessonAssessment"`
+	LessonTitle      string `json:"lessonTitle"`
+	LessonObjective  string `json:"lessonObjective"`
+	LessonAssessment string `json:"lessonAssessment"`
 
 	// profile parameters
-	EducationLevel    string   `json:"educationLevel"`
-	Interests         []string `json:"interests"`
-	CareerGoals       string   `json:"careerGoals"`
+	EducationLevel string   `json:"educationLevel"`
+	Interests      []string `json:"interests"`
+	CareerGoals    string   `json:"careerGoals"`
 }
 
 // Response struct for notes
@@ -143,11 +145,11 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Use Gemini client directly for testing
 	// client, err = GetLLMClient("deepseek")
-	if err != nil {
-		log.Printf("[GenerateNotesHandler] Failed to get Gemini client: %v", err)
-		utils.WriteJSONError(w, "Failed to get Gemini client", http.StatusInternalServerError)
-		return
-	}
+	// if err != nil {
+	// 	log.Printf("[GenerateNotesHandler] Failed to get Gemini client: %v", err)
+	// 	utils.WriteJSONError(w, "Failed to get Gemini client", http.StatusInternalServerError)
+	// 	return
+	// }
 	log.Printf("[GenerateNotesHandler] Calling Gemini client...")
 	rawResponse, err := client.Call(endpoint, payload)
 	if err != nil {
@@ -168,7 +170,6 @@ func GenerateNotesHandler(w http.ResponseWriter, r *http.Request) {
 		cleaned = strings.TrimSuffix(cleaned, "```")
 		cleaned = strings.TrimSpace(cleaned)
 	}
-
 
 	// Wrap final response
 	result := NotesResponse{

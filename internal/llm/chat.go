@@ -3,42 +3,43 @@ package llm
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
+	"math/rand"
 	"net/http"
-	"strings"
+	"time"
 
+	"agent-core/internal/cache"
+	"agent-core/internal/llm/configs"
 	"agent-core/internal/llm/utils"
 	"agent-core/internal/prompt"
-	"agent-core/internal/llm/configs"
-	"agent-core/internal/cache"
 )
 
-type StudentProfile struct {
-	Name           string   `json:"name"`
-	EducationLevel string   `json:"educationLevel"`
-	Interests      []string `json:"interests"`
-	CareerGoals    string   `json:"careerGoals"`
-}
+// add datapoint to customize agent support chat
+// StudentProfile is now UserProfile in types_common.go
 
 type ChatAgentRequest struct {
-	Title          string `json:"lessonTitle"`
-	Objective      string `json:"objective"`
-	Difficulty     string `json:"difficulty"`
-	EducationLevel string `json:"education_level"`
-	AgentRole      string `json:"agent_role"`
-	ActivityId     string `json:"activityId"`
-	StudentMessage string `json:"studentMessage"`
-	StudentProfile StudentProfile `json:"studentProfile"`
-	CourseUnit     CourseUnit `json:"courseUnit"`
-	Notes          interface{} `json:"notes"`
+	Title          string        `json:"lessonTitle"`
+	Objective      string        `json:"objective"`
+	Difficulty     string        `json:"difficulty"`
+	EducationLevel string        `json:"education_level"`
+	AgentRole      string        `json:"agent_role"`
+	ActivityId     string        `json:"activityId"`
+	StudentMessage string        `json:"studentMessage"`
+	StudentProfile UserProfile   `json:"studentProfile"`
+	CourseUnit     CourseUnit    `json:"courseUnit"`
+	Notes          interface{}   `json:"notes"`
 	ChatHistory    []interface{} `json:"chatHistory"`
-	LeaderRole     string `json:"leader"`
+	LeaderRole     string        `json:"leader"`
 }
 
 // Generic chat handler for a specific agent role and prompt
 func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[chatHandlerWithRole] Incoming request for role: %s, prompt: %s", agentRole, promptKey)
 		if r.Method != http.MethodPost {
+			log.Printf("[chatHandlerWithRole] Invalid method: %s", r.Method)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -47,6 +48,7 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 		r.Body = http.MaxBytesReader(w, r.Body, 1048576)
 		rawBodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
+			log.Printf("[chatHandlerWithRole] Failed to read request body: %v", err)
 			utils.WriteJSONError(w, "Failed to read request body", http.StatusBadRequest)
 			return
 		}
@@ -55,15 +57,18 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 		var req ChatAgentRequest
 		err = json.Unmarshal(rawBodyBytes, &req)
 		if err != nil {
+			log.Printf("[chatHandlerWithRole] Invalid request body: %v", err)
 			utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+		log.Printf("[chatHandlerWithRole] Parsed request for lesson: %s", req.Title)
 
 		// Overwrite agent role to ensure it's correct for this endpoint
 		req.AgentRole = agentRole
 
 		promptTemplate, err := prompt.GetPrompt(promptKey)
 		if err != nil {
+			log.Printf("[chatHandlerWithRole] Failed to load prompt: %v", err)
 			utils.WriteJSONError(w, "Failed to load chat prompt", http.StatusInternalServerError)
 			return
 		}
@@ -73,18 +78,23 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 
 		userDetailsJson, err := json.Marshal(req)
 		if err != nil {
+			log.Printf("[chatHandlerWithRole] Failed to serialize user message: %v", err)
 			utils.WriteJSONError(w, "Failed to serialize user message", http.StatusInternalServerError)
 			return
 		}
 
 		// Prepare cache key
-		payloadStr := string(userDetailsJson)
+		rand.Seed(time.Now().UnixNano())
+		emotionalResponse := rand.Intn(10)
+		payloadStr := string(userDetailsJson) + fmt.Sprintf("%d", emotionalResponse)
 		cacheInstance := cache.Get()
 		if cached, found, _ := cacheInstance.CheckByPayload(payloadStr); found {
+			log.Printf("[chatHandlerWithRole] Cache hit for chat")
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(cached)
 			return
 		}
+		log.Printf("[chatHandlerWithRole] Cache miss, calling LLM")
 
 		fullPrompt := promptStr + "\n" + string(userDetailsJson)
 
@@ -97,6 +107,7 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 		endpoint := "/chat"
 		config, ok := configs.GetDeepseekConfig(endpoint)
 		if !ok {
+			log.Printf("[chatHandlerWithRole] No config found for endpoint: %s", endpoint)
 			utils.WriteJSONError(w, "no config found for endpoint: "+endpoint, http.StatusInternalServerError)
 			return
 		}
@@ -108,22 +119,22 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 
 		client, err := GetLLMClient(clientName)
 		if err != nil {
+			log.Printf("[chatHandlerWithRole] Failed to get client %s: %v", clientName, err)
 			utils.WriteJSONError(w, "failed to get client "+clientName+": "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		log.Printf("[chatHandlerWithRole] Calling LLM client: %s", clientName)
 
 		chatResp, err := client.Call(endpoint, payload)
 		if err != nil {
+			log.Printf("[chatHandlerWithRole] LLM call failed: %v", err)
 			utils.WriteJSONError(w, "Failed to generate chat response", http.StatusInternalServerError)
 			return
 		}
+		log.Printf("[chatHandlerWithRole] Received LLM response")
 
-		cleaned := strings.TrimSpace(chatResp)
-		if strings.HasPrefix(cleaned, "```") {
-			cleaned = strings.TrimPrefix(cleaned, "```")
-			cleaned = strings.TrimSuffix(cleaned, "```")
-			cleaned = strings.TrimSpace(cleaned)
-		}
+		// Clean up JSON response
+		cleaned := utils.CleanJSONResponse(chatResp)
 
 		finalResponse := map[string]string{
 			"response": cleaned,
@@ -131,11 +142,13 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 
 		respBytes, err := json.Marshal(finalResponse)
 		if err != nil {
+			log.Printf("[chatHandlerWithRole] Failed to serialize chat response: %v", err)
 			utils.WriteJSONError(w, "Failed to serialize chat response", http.StatusInternalServerError)
 			return
 		}
 		// Store response in cache
 		_ = cache.Get().CacheByPayload(payloadStr, respBytes)
+		log.Printf("[chatHandlerWithRole] Successfully generated chat response, cached")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(respBytes)
 	}

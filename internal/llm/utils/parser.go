@@ -123,3 +123,42 @@ func ExtractJsonFromCodeBlock(text string) string {
 	
 	return strings.TrimSpace(text)
 }
+
+// CleanJSONResponse cleans LLM response to extract valid JSON
+// Handles markdown code blocks, extra text, and malformed responses
+func CleanJSONResponse(rawResponse string) string {
+	// First, trim whitespace
+	cleaned := strings.TrimSpace(rawResponse)
+	
+	// Remove markdown code fences (```json or ```)
+	cleaned = ExtractJsonFromCodeBlock(cleaned)
+	
+	// Remove any leading/trailing non-JSON text before first { or [
+	// Find the first occurrence of { or [
+	startIdx := -1
+	for i, ch := range cleaned {
+		if ch == '{' || ch == '[' {
+			startIdx = i
+			break
+		}
+	}
+	
+	if startIdx > 0 {
+		cleaned = cleaned[startIdx:]
+	}
+	
+	// Find the last occurrence of } or ]
+	endIdx := -1
+	for i := len(cleaned) - 1; i >= 0; i-- {
+		if cleaned[i] == '}' || cleaned[i] == ']' {
+			endIdx = i
+			break
+		}
+	}
+	
+	if endIdx >= 0 && endIdx < len(cleaned)-1 {
+		cleaned = cleaned[:endIdx+1]
+	}
+	
+	return strings.TrimSpace(cleaned)
+}

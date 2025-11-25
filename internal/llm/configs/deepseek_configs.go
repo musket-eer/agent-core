@@ -10,7 +10,6 @@ type DeepseekConfig struct {
 	OtherParams map[string]interface{}
 }
 
-
 // DeepseekEndpointConfigs maps endpoint names to their DeepseekConfig.
 var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 	"/generate-lesson": {
@@ -66,6 +65,216 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		Temperature: 0.6,
 		MaxTokens:   512,
 		ClientName:  "chat",
+	},
+	// Dashboard Agent endpoints
+	"/dashboard/insights": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/dashboard/recommendations": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/dashboard/analyze-progress": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/dashboard/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	// Course Browse Agent endpoints
+	"/courses/intelligent-search": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/courses/explain-relevance": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   512,
+		ClientName:  "general",
+	},
+	"/courses/compare": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/courses/suggest-path": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/courses/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	// Reflection Agent endpoints
+	"/reflection/generate-prompts": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   512,
+		ClientName:  "general",
+	},
+	"/reflection/analyze": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/reflection/learning-insights": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/reflection/period-summary": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/reflection/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	"/reflection/suggest-exercises": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/reflection/generate-task-reflection": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	// Tasks Agent endpoints
+	"/tasks/generate-suggestions": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/tasks/prioritize": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/tasks/break-down": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/tasks/productivity-insights": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/tasks/generate-schedule": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/tasks/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	"/tasks/motivation": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.9,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	// Librarian Agent endpoints
+	"/chat-video": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	"/recommend-videos": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/summarize-video": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/extract-concepts": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/generate-quiz": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/find-topic": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   512,
+		ClientName:  "general",
+	},
+	// Project Assistant Agent endpoints
+	"/projects/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   512,
+		ClientName:  "chat",
+	},
+	"/projects/suggestions": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/projects/help": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/projects/break-down": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/projects/resources": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
 	},
 }
 

@@ -3,11 +3,11 @@
 package llm
 
 import (
+	"log"
 	"net/http"
 )
 
 // RegisterHandlers returns a ServeMux with all Bedrock endpoints mapped.
-import "log"
 
 func logRequest(endpoint string, handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -26,6 +26,8 @@ func logRequest(endpoint string, handler http.HandlerFunc) http.HandlerFunc {
 
 func RegisterHandlers() http.Handler {
 	mux := http.NewServeMux()
+
+	// Existing endpoints
 	mux.HandleFunc("/generate-lesson", logRequest("/generate-lesson", GenerateLessonHandler))
 	mux.HandleFunc("/generate-course", logRequest("/generate-course", GenerateCourseHandler))
 	mux.HandleFunc("/generate-notes", logRequest("/generate-notes", GenerateNotesHandler))
@@ -35,5 +37,54 @@ func RegisterHandlers() http.Handler {
 	mux.HandleFunc("/professor-chat", logRequest("/professor-chat", ProfessorChatHandler))
 	mux.HandleFunc("/librarian-chat", logRequest("/librarian-chat", LibrarianChatHandler))
 	mux.HandleFunc("/examiner-chat", logRequest("/examiner-chat", ExaminerChatHandler))
+
+	// Dashboard Agent endpoints
+	mux.HandleFunc("/dashboard/insights", logRequest("/dashboard/insights", DashboardInsightsHandler))
+	mux.HandleFunc("/dashboard/recommendations", logRequest("/dashboard/recommendations", DashboardRecommendationsHandler))
+	mux.HandleFunc("/dashboard/analyze-progress", logRequest("/dashboard/analyze-progress", DashboardAnalyzeProgressHandler))
+	mux.HandleFunc("/dashboard/chat", logRequest("/dashboard/chat", DashboardChatHandler))
+
+	// Course Browse Agent endpoints
+	mux.HandleFunc("/courses/intelligent-search", logRequest("/courses/intelligent-search", CourseIntelligentSearchHandler))
+	mux.HandleFunc("/courses/explain-relevance", logRequest("/courses/explain-relevance", CourseExplainRelevanceHandler))
+	mux.HandleFunc("/courses/compare", logRequest("/courses/compare", CourseCompareHandler))
+	mux.HandleFunc("/courses/suggest-path", logRequest("/courses/suggest-path", CourseSuggestPathHandler))
+	mux.HandleFunc("/courses/chat", logRequest("/courses/chat", CourseChatHandler))
+
+	// Reflection Agent endpoints
+	mux.HandleFunc("/reflection/generate-prompts", logRequest("/reflection/generate-prompts", ReflectionGeneratePromptsHandler))
+	mux.HandleFunc("/reflection/analyze", logRequest("/reflection/analyze", ReflectionAnalyzeHandler))
+	mux.HandleFunc("/reflection/learning-insights", logRequest("/reflection/learning-insights", ReflectionLearningInsightsHandler))
+	mux.HandleFunc("/reflection/period-summary", logRequest("/reflection/period-summary", ReflectionPeriodSummaryHandler))
+	mux.HandleFunc("/reflection/chat", logRequest("/reflection/chat", ReflectionChatHandler))
+	mux.HandleFunc("/reflection/suggest-exercises", logRequest("/reflection/suggest-exercises", ReflectionSuggestExercisesHandler))
+	mux.HandleFunc("/reflection/generate-task-reflection", logRequest("/reflection/generate-task-reflection", GenerateTaskReflectionHandler))
+	mux.HandleFunc("/reflection/task-prompts", logRequest("/reflection/task-prompts", TaskPromptsHandler))
+	mux.HandleFunc("/reflection/analyze-task", logRequest("/reflection/analyze-task", AnalyzeTaskHandler))
+
+	// Tasks Agent endpoints
+	mux.HandleFunc("/tasks/generate-suggestions", logRequest("/tasks/generate-suggestions", TasksGenerateSuggestionsHandler))
+	mux.HandleFunc("/tasks/prioritize", logRequest("/tasks/prioritize", TasksPrioritizeHandler))
+	mux.HandleFunc("/tasks/break-down", logRequest("/tasks/break-down", TasksBreakDownHandler))
+	mux.HandleFunc("/tasks/productivity-insights", logRequest("/tasks/productivity-insights", TasksProductivityInsightsHandler))
+	mux.HandleFunc("/tasks/generate-schedule", logRequest("/tasks/generate-schedule", TasksGenerateScheduleHandler))
+	mux.HandleFunc("/tasks/chat", logRequest("/tasks/chat", TasksChatHandler))
+	mux.HandleFunc("/tasks/motivation", logRequest("/tasks/motivation", TasksMotivationHandler))
+
+	// Librarian Agent endpoints
+	mux.HandleFunc("/chat-video", logRequest("/chat-video", ChatVideoHandler))
+	mux.HandleFunc("/recommend-videos", logRequest("/recommend-videos", RecommendVideosHandler))
+	mux.HandleFunc("/summarize-video", logRequest("/summarize-video", SummarizeVideoHandler))
+	mux.HandleFunc("/extract-concepts", logRequest("/extract-concepts", ExtractConceptsHandler))
+	mux.HandleFunc("/generate-quiz", logRequest("/generate-quiz", GenerateQuizHandler))
+	mux.HandleFunc("/find-topic", logRequest("/find-topic", FindTopicHandler))
+
+	// Project Assistant Agent endpoints
+	mux.HandleFunc("/projects/chat", logRequest("/projects/chat", ProjectsChatHandler))
+	mux.HandleFunc("/projects/suggestions", logRequest("/projects/suggestions", ProjectsSuggestionsHandler))
+	mux.HandleFunc("/projects/help", logRequest("/projects/help", ProjectsHelpHandler))
+	mux.HandleFunc("/projects/break-down", logRequest("/projects/break-down", ProjectsBreakDownHandler))
+	mux.HandleFunc("/projects/resources", logRequest("/projects/resources", ProjectsResourcesHandler))
+
 	return mux
 }
