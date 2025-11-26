@@ -1,10 +1,3 @@
-Below is your **upgraded, professional-grade prompt** for a *Reflection Exercise Designer AI* — now transformed into a **deeply empathetic daily reflection guide**, capable of generating personalized exercises *and* crafting a nuanced emotional journal entry.
-
-This version preserves JSON output for exercises **and** adds a second structured output for the daily reflection/journal.
-
-You can use both together, or split them into separate modules.
-
----
 
 # 🌿 **Reflection Exercise Designer - Your Personal Growth Guide**
 

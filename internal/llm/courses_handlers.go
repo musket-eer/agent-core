@@ -153,12 +153,18 @@ func handleLLMRequest(w http.ResponseWriter, req interface{}, promptKey string, 
 	}
 	log.Printf("[handleLLMRequest] Cache miss for endpoint: %s, calling LLM", endpoint)
 
-	systemPrompt, err := prompt.GetPrompt(promptKey)
+	basePrompt, err := prompt.GetPrompt(promptKey)
 	if err != nil {
 		log.Printf("[handleLLMRequest] Failed to load prompt %s: %v", promptKey, err)
 		utils.WriteJSONError(w, "Failed to load prompt", http.StatusInternalServerError)
 		return nil
 	}
+
+	// Extract persona information if available
+	agentID, persona := ExtractPersona(req)
+
+	// Build persona-aware system prompt
+	systemPrompt := BuildPersonaSystemPrompt(agentID, persona, basePrompt)
 
 	userMessage, _ := json.Marshal(req)
 	payload := map[string]interface{}{
@@ -197,7 +203,7 @@ func handleLLMRequest(w http.ResponseWriter, req interface{}, promptKey string, 
 	// Clean the JSON response to remove markdown code blocks and extra text
 	cleanedResponse := utils.CleanJSONResponse(rawResponse)
 	responseBytes := []byte(cleanedResponse)
-	
+
 	_ = cache.Get().CacheByPayload(payloadStr, responseBytes)
 	log.Printf("[handleLLMRequest] Successfully processed request for endpoint: %s, cached response", endpoint)
 	w.Header().Set("Content-Type", "application/json")

@@ -111,11 +111,16 @@ type LearningPhase struct {
 }
 
 type CourseChatRequest struct {
+	PersonaRequest
 	Message       string                 `json:"message"`
 	UserID        string                 `json:"userId"`
 	UserProfile   UserProfile            `json:"userProfile"`
 	ChatHistory   []ChatMessage          `json:"chatHistory"`
 	BrowseContext map[string]interface{} `json:"browseContext"`
+}
+
+func (r CourseChatRequest) GetPersona() (string, *Persona) {
+	return r.AgentID, r.Persona
 }
 
 type CourseChatResponse struct {

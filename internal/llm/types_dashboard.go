@@ -5,22 +5,22 @@ package llm
 // ============================================================================
 
 type DashboardInsightsRequest struct {
-	UserID            string     `json:"userId"`
-	UserName          string     `json:"userName"`
-	EducationLevel    string     `json:"educationLevel"`
-	CareerGoals       string     `json:"careerGoals"`
-	Interests         []string   `json:"interests"`
-	RecentActivities  []Activity `json:"recentActivities"`
-	CompletedCourses  []string   `json:"completedCourses"`
-	CurrentCourses    []string   `json:"currentCourses"`
-	LearningStreak    int        `json:"learningStreak"`
-	TotalStudyTime    int        `json:"totalStudyTime"`
+	UserID           string     `json:"userId"`
+	UserName         string     `json:"userName"`
+	EducationLevel   string     `json:"educationLevel"`
+	CareerGoals      string     `json:"careerGoals"`
+	Interests        []string   `json:"interests"`
+	RecentActivities []Activity `json:"recentActivities"`
+	CompletedCourses []string   `json:"completedCourses"`
+	CurrentCourses   []string   `json:"currentCourses"`
+	LearningStreak   int        `json:"learningStreak"`
+	TotalStudyTime   int        `json:"totalStudyTime"`
 }
 
 type DashboardInsightsResponse struct {
-	Insights             InsightsSummary     `json:"insights"`
-	MotivationalMessage  string              `json:"motivationalMessage"`
-	ProgressHighlights   []ProgressHighlight `json:"progressHighlights"`
+	Insights            InsightsSummary     `json:"insights"`
+	MotivationalMessage string              `json:"motivationalMessage"`
+	ProgressHighlights  []ProgressHighlight `json:"progressHighlights"`
 }
 
 type InsightsSummary struct {
@@ -97,12 +97,17 @@ type Trend struct {
 }
 
 type DashboardChatRequest struct {
+	PersonaRequest
 	Message          string                 `json:"message"`
 	UserID           string                 `json:"userId"`
 	UserName         string                 `json:"userName"`
 	UserProfile      UserProfile            `json:"userProfile"`
 	ChatHistory      []ChatMessage          `json:"chatHistory"`
 	DashboardContext map[string]interface{} `json:"dashboardContext"`
+}
+
+func (r DashboardChatRequest) GetPersona() (string, *Persona) {
+	return r.AgentID, r.Persona
 }
 
 type DashboardChatResponse struct {

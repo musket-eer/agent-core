@@ -86,12 +86,17 @@ type ReflectionPeriodSummaryResponse struct {
 }
 
 type ReflectionChatRequest struct {
+	PersonaRequest
 	Message           string                 `json:"message"`
 	UserID            string                 `json:"userId"`
 	UserName          string                 `json:"userName"`
 	UserProfile       UserProfile            `json:"userProfile"`
 	ChatHistory       []ChatMessage          `json:"chatHistory"`
 	ReflectionContext map[string]interface{} `json:"reflectionContext"`
+}
+
+func (r ReflectionChatRequest) GetPersona() (string, *Persona) {
+	return r.AgentID, r.Persona
 }
 
 type ReflectionChatResponse struct {

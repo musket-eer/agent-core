@@ -99,12 +99,12 @@ type Subtask struct {
 }
 
 type TasksProductivityInsightsRequest struct {
-	UserID              string                `json:"userId"`
-	Timeframe           string                `json:"timeframe"` // "day", "week", "month"
-	CompletedTasks      []CompletedTask       `json:"completedTasks"`
-	PendingTasks        []PendingTask         `json:"pendingTasks"`
-	TaskCompletionTimes []TaskCompletionTime  `json:"taskCompletionTimes"`
-	UrgencyDistribution UrgencyDistribution   `json:"urgencyDistribution"`
+	UserID              string               `json:"userId"`
+	Timeframe           string               `json:"timeframe"` // "day", "week", "month"
+	CompletedTasks      []CompletedTask      `json:"completedTasks"`
+	PendingTasks        []PendingTask        `json:"pendingTasks"`
+	TaskCompletionTimes []TaskCompletionTime `json:"taskCompletionTimes"`
+	UrgencyDistribution UrgencyDistribution  `json:"urgencyDistribution"`
 }
 
 type CompletedTask struct {
@@ -205,12 +205,17 @@ type ScheduleAlternative struct {
 }
 
 type TasksChatRequest struct {
+	PersonaRequest
 	Message      string                 `json:"message"`
 	UserID       string                 `json:"userId"`
 	UserName     string                 `json:"userName"`
 	UserProfile  UserProfile            `json:"userProfile"`
 	ChatHistory  []ChatMessage          `json:"chatHistory"`
 	TasksContext map[string]interface{} `json:"tasksContext"`
+}
+
+func (r TasksChatRequest) GetPersona() (string, *Persona) {
+	return r.AgentID, r.Persona
 }
 
 type TasksChatResponse struct {

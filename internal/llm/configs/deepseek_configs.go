@@ -66,6 +66,13 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   512,
 		ClientName:  "chat",
 	},
+	// Orchestrator Agent endpoint
+	"/ai/orchestrator": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
 	// Dashboard Agent endpoints
 	"/dashboard/insights": {
 		ModelId:     "deepseek-chat",

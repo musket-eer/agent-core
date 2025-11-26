@@ -5,6 +5,7 @@ package llm
 // ============================================================================
 
 type ProfessorChatRequest struct {
+	PersonaRequest
 	ActivityID     string        `json:"activityId"`
 	LessonTitle    string        `json:"lessonTitle"`
 	Leader         string        `json:"leader"`
@@ -15,11 +16,16 @@ type ProfessorChatRequest struct {
 	ChatHistory    []ChatMessage `json:"chatHistory"`
 }
 
+func (r ProfessorChatRequest) GetPersona() (string, *Persona) {
+	return r.AgentID, r.Persona
+}
+
 type ProfessorChatResponse struct {
 	Response string `json:"response"`
 }
 
 type GenerateNotesRequest struct {
+	PersonaRequest
 	CourseTitle           string `json:"courseTitle"`
 	CourseDescription     string `json:"courseDescription"`
 	CourseDifficultyLevel string `json:"courseDifficultyLevel"`
@@ -32,17 +38,26 @@ type GenerateNotesRequest struct {
 	Interests             string `json:"interests"`
 }
 
+func (r GenerateNotesRequest) GetPersona() (string, *Persona) {
+	return r.AgentID, r.Persona
+}
+
 type GenerateNotesResponse struct {
 	Notes string `json:"notes"`
 }
 
 type GenerateLessonRequest struct {
+	PersonaRequest
 	CourseTitle       string      `json:"courseTitle"`
 	CourseDescription string      `json:"courseDescription"`
 	LessonTitle       string      `json:"lessonTitle"`
 	LessonObjective   string      `json:"lessonObjective"`
 	StudentProfile    UserProfile `json:"studentProfile"`
 	AdditionalContext string      `json:"additionalContext"`
+}
+
+func (r GenerateLessonRequest) GetPersona() (string, *Persona) {
+	return r.AgentID, r.Persona
 }
 
 type GenerateLessonResponse struct {

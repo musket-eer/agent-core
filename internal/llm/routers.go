@@ -38,6 +38,9 @@ func RegisterHandlers() http.Handler {
 	mux.HandleFunc("/librarian-chat", logRequest("/librarian-chat", LibrarianChatHandler))
 	mux.HandleFunc("/examiner-chat", logRequest("/examiner-chat", ExaminerChatHandler))
 
+	// Orchestrator Agent endpoint
+	mux.HandleFunc("/ai/orchestrator", logRequest("/ai/orchestrator", OrchestratorHandler))
+
 	// Dashboard Agent endpoints
 	mux.HandleFunc("/dashboard/insights", logRequest("/dashboard/insights", DashboardInsightsHandler))
 	mux.HandleFunc("/dashboard/recommendations", logRequest("/dashboard/recommendations", DashboardRecommendationsHandler))
