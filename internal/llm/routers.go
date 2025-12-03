@@ -41,6 +41,15 @@ func RegisterHandlers() http.Handler {
 	// Orchestrator Agent endpoint
 	mux.HandleFunc("/ai/orchestrator", logRequest("/ai/orchestrator", OrchestratorHandler))
 
+	// Project Generation endpoint (stateless, aligned with frontend)
+	mux.HandleFunc("/generate-project", logRequest("/generate-project", GenerateProjectHandler))
+
+	// Generate Tasks endpoint (for milestone task generation)
+	mux.HandleFunc("/generate-tasks", logRequest("/generate-tasks", GenerateTasksHandler))
+
+	// Optional: Milestone task refinement endpoint
+	mux.HandleFunc("/ai/projects/milestone-to-tasks", logRequest("/ai/projects/milestone-to-tasks", MilestoneToTasksHandler))
+
 	// Dashboard Agent endpoints
 	mux.HandleFunc("/dashboard/insights", logRequest("/dashboard/insights", DashboardInsightsHandler))
 	mux.HandleFunc("/dashboard/recommendations", logRequest("/dashboard/recommendations", DashboardRecommendationsHandler))
@@ -88,6 +97,11 @@ func RegisterHandlers() http.Handler {
 	mux.HandleFunc("/projects/help", logRequest("/projects/help", ProjectsHelpHandler))
 	mux.HandleFunc("/projects/break-down", logRequest("/projects/break-down", ProjectsBreakDownHandler))
 	mux.HandleFunc("/projects/resources", logRequest("/projects/resources", ProjectsResourcesHandler))
+
+	// Project AI Agent endpoints (stateless)
+	mux.HandleFunc("/projects/create", logRequest("/projects/create", ProjectCreatorHandler))
+	mux.HandleFunc("/projects/assist", logRequest("/projects/assist", ProjectAssistantHandler))
+	mux.HandleFunc("/projects/translate-milestones", logRequest("/projects/translate-milestones", MilestoneTranslatorHandler))
 
 	return mux
 }

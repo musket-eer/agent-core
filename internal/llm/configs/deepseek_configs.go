@@ -73,6 +73,26 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   2048,
 		ClientName:  "general",
 	},
+	// Project Generation endpoint (stateless, aligned with frontend)
+	"/generate-project": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   4096,
+		ClientName:  "general",
+	},
+	// Generate Tasks endpoint (for milestone task generation)
+	"/generate-tasks": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.6,
+		MaxTokens:   1536,
+		ClientName:  "general",
+	},
+	"/ai/projects/milestone-to-tasks": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.6,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
 	// Dashboard Agent endpoints
 	"/dashboard/insights": {
 		ModelId:     "deepseek-chat",
@@ -281,6 +301,25 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		ModelId:     "deepseek-chat",
 		Temperature: 0.7,
 		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	// Project AI Agent endpoints (stateless)
+	"/projects/create": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   3072,
+		ClientName:  "general",
+	},
+	"/projects/assist": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	"/projects/translate-milestones": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.6,
+		MaxTokens:   2048,
 		ClientName:  "general",
 	},
 }
