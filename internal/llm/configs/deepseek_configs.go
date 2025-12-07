@@ -87,6 +87,13 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   1536,
 		ClientName:  "general",
 	},
+	// Course Creation Chat endpoint (dialogue-based course creation)
+	"/course-creation/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
 	"/ai/projects/milestone-to-tasks": {
 		ModelId:     "deepseek-chat",
 		Temperature: 0.6,

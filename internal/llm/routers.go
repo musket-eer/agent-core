@@ -47,6 +47,9 @@ func RegisterHandlers() http.Handler {
 	// Generate Tasks endpoint (for milestone task generation)
 	mux.HandleFunc("/generate-tasks", logRequest("/generate-tasks", GenerateTasksHandler))
 
+	// Course Creation Chat endpoint (dialogue-based course creation)
+	mux.HandleFunc("/course-creation/chat", logRequest("/course-creation/chat", CourseCreationChatHandler))
+
 	// Optional: Milestone task refinement endpoint
 	mux.HandleFunc("/ai/projects/milestone-to-tasks", logRequest("/ai/projects/milestone-to-tasks", MilestoneToTasksHandler))
 
