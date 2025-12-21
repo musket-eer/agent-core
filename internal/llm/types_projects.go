@@ -143,6 +143,6 @@ type TranslatedTask struct {
 	Description      string `json:"description"`
 	EstimatedMinutes int    `json:"estimated_minutes"`
 	Difficulty       string `json:"difficulty"` // "easy", "medium", "hard"
-	CourseID         string `json:"courseId,omitempty"`
-	LessonID         string `json:"lessonId,omitempty"`
+	CourseTitle      string `json:"courseTitle,omitempty"`
+	LessonTitle      string `json:"lessonTitle,omitempty"`
 }

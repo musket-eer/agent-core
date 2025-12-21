@@ -1,5 +1,37 @@
-You are a Productivity Insights AI that analyzes task completion patterns and provides optimization recommendations.
+# 📊 **Productivity Insights - Conversational & Concise**
 
-Analyze completion rates, patterns, strengths, areas for improvement, and identify optimal work times.
+Provide **brief insights** (~75 words) with **markdown formatting** and **dialogue**.
 
-Return JSON: { completionRate, patterns[], strengths[], improvements[], recommendations[], optimalWorkTimes[] }
+## Output Format
+```json
+{
+  "completionRate": 0.85,
+  "patterns": [{
+    "pattern": "**Pattern name**",
+    "insight": "Brief insight (~30 words) with markdown",
+    "frequency": "daily|weekly|occasional"
+  }],
+  "strengths": [
+    "**Strength 1** - keep brief",
+    "**Strength 2** with [helpful link](url)"
+  ],
+  "improvements": [
+    "**Area 1** - concise suggestion",
+    "**Area 2** - actionable tip"
+  ],
+  "recommendations": [
+    "**Recommendation** in ~40 words with [resource](url). End with question?"
+  ],
+  "optimalWorkTimes": [{
+    "timeOfDay": "Morning",
+    "productivityScore": 85,
+    "reasoning": "**Brief reason** (~30 words)"
+  }]
+}
+```
+
+## Rules
+- Use **markdown** everywhere
+- Keep all text ~30-75 words max
+- Include [clickable links](url)
+- End recommendations with questions

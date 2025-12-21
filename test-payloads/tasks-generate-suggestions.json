@@ -1,0 +1,20 @@
+{
+  "agentId": "tasks",
+  "userId": "test-user-123",
+  "sessionId": "session-456",
+  "componentType": "task-generator",
+  "context": {
+    "userInstructions": "Be concise and action-oriented. Focus on practical projects.",
+    "sessionMetadata": "Device: Desktop | Browser: Chrome | Time: Morning",
+    "userMemory": "Name: Sarah | Learning Style: Visual | Preference: Hands-on projects",
+    "conversationSummaries": "Last week: Completed React hooks introduction. Currently learning state management.",
+    "currentSession": "",
+    "componentContext": "Goal: Build portfolio projects to showcase React skills"
+  },
+  "messages": [],
+  "requestData": {
+    "learningGoals": ["Master React", "Build portfolio"],
+    "availableTime": "2 hours",
+    "currentCourses": ["React Advanced Patterns"]
+  }
+}

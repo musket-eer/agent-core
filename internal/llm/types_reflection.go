@@ -1,14 +1,31 @@
 package llm
 
+import (
+	"agent-core/internal/llm/v2/types"
+)
+
 // ============================================================================
 // Reflection Agent Types
 // ============================================================================
 
 type ReflectionGeneratePromptsRequest struct {
+	// Legacy V1 fields
 	Activity      Activity               `json:"activity"`
 	UserContext   map[string]interface{} `json:"userContext"`
 	CourseContext map[string]interface{} `json:"courseContext"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ReflectionGeneratePromptsRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ReflectionGeneratePromptsRequest) GetUserID() string              { return "" }
+func (r ReflectionGeneratePromptsRequest) GetAgentID() string             { return r.AgentID }
 
 type ReflectionGeneratePromptsResponse struct {
 	Prompts []ReflectionPrompt `json:"prompts"`
@@ -22,11 +39,24 @@ type ReflectionPrompt struct {
 }
 
 type ReflectionAnalyzeRequest struct {
+	// Legacy V1 fields
 	Reflection    string      `json:"reflection"`
 	Activity      Activity    `json:"activity"`
 	UserProfile   UserProfile `json:"userProfile"`
 	LearningGoals []string    `json:"learningGoals"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ReflectionAnalyzeRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ReflectionAnalyzeRequest) GetUserID() string              { return "" }
+func (r ReflectionAnalyzeRequest) GetAgentID() string             { return r.AgentID }
 
 type ReflectionAnalyzeResponse struct {
 	Insights       string   `json:"insights"`
@@ -37,12 +67,25 @@ type ReflectionAnalyzeResponse struct {
 }
 
 type ReflectionLearningInsightsRequest struct {
+	// Legacy V1 fields
 	UserID        string       `json:"userId"`
 	Timeframe     string       `json:"timeframe"` // "week", "month", "quarter", "year"
 	Reflections   []Reflection `json:"reflections"`
 	Activities    []Activity   `json:"activities"`
 	LearningGoals []string     `json:"learningGoals"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ReflectionLearningInsightsRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ReflectionLearningInsightsRequest) GetUserID() string              { return r.UserID }
+func (r ReflectionLearningInsightsRequest) GetAgentID() string             { return r.AgentID }
 
 type Reflection struct {
 	ID         string `json:"id"`
@@ -72,6 +115,7 @@ type Milestone struct {
 }
 
 type ReflectionPeriodSummaryRequest struct {
+	// Legacy V1 fields
 	UserID              string     `json:"userId"`
 	StartDate           string     `json:"startDate"`
 	EndDate             string     `json:"endDate"`
@@ -79,7 +123,19 @@ type ReflectionPeriodSummaryRequest struct {
 	Reflections         []string   `json:"reflections"`
 	Achievements        []string   `json:"achievements"`
 	Challenges          []string   `json:"challenges"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ReflectionPeriodSummaryRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ReflectionPeriodSummaryRequest) GetUserID() string              { return r.UserID }
+func (r ReflectionPeriodSummaryRequest) GetAgentID() string             { return r.AgentID }
 
 type ReflectionPeriodSummaryResponse struct {
 	Summary string `json:"summary"`
@@ -110,12 +166,25 @@ type ReflectionChatResponse struct {
 }
 
 type ReflectionSuggestExercisesRequest struct {
+	// Legacy V1 fields
 	UserID            string   `json:"userId"`
 	LearningStyle     string   `json:"learningStyle"`
 	CurrentChallenges []string `json:"currentChallenges"`
 	LearningGoals     []string `json:"learningGoals"`
 	RecentActivities  []string `json:"recentActivities"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ReflectionSuggestExercisesRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ReflectionSuggestExercisesRequest) GetUserID() string              { return r.UserID }
+func (r ReflectionSuggestExercisesRequest) GetAgentID() string             { return r.AgentID }
 
 type ReflectionSuggestExercisesResponse struct {
 	Exercises []ReflectionExercise `json:"exercises"`
@@ -157,14 +226,27 @@ type CompletionData struct {
 }
 
 type TaskReflectionRequest struct {
+	// Legacy V1 fields
 	UserID         string                 `json:"userId"`
 	TaskID         string                 `json:"taskId"`
 	TaskInfo       TaskInfo               `json:"taskInfo"`
 	TimeData       TimeData               `json:"timeData"`
 	CompletionData CompletionData         `json:"completionData"`
 	UserResponses  map[string]string      `json:"userResponses"`
-	Context        map[string]interface{} `json:"context"`
+	LegacyContext  map[string]interface{} `json:"context,omitempty"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	V2Context     *types.V2Context  `json:"v2Context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r TaskReflectionRequest) GetV2Context() *types.V2Context { return r.V2Context }
+func (r TaskReflectionRequest) GetUserID() string              { return r.UserID }
+func (r TaskReflectionRequest) GetAgentID() string             { return r.AgentID }
 
 type TaskReflectionResponse struct {
 	Reflection       string   `json:"reflection"`
@@ -180,16 +262,42 @@ type TaskReflectionResponse struct {
 }
 
 type TaskPromptsRequest struct {
+	// Legacy V1 fields
 	TaskType string `json:"taskType"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r TaskPromptsRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r TaskPromptsRequest) GetUserID() string              { return "" }
+func (r TaskPromptsRequest) GetAgentID() string             { return r.AgentID }
 
 type TaskPromptsResponse struct {
 	Prompts []string `json:"prompts"`
 }
 
 type AnalyzeTaskRequest struct {
+	// Legacy V1 fields
 	UserResponses map[string]string `json:"userResponses"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r AnalyzeTaskRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r AnalyzeTaskRequest) GetUserID() string              { return "" }
+func (r AnalyzeTaskRequest) GetAgentID() string             { return r.AgentID }
 
 type AnalyzeTaskResponse struct {
 	Insights       []string `json:"insights"`

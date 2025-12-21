@@ -3,6 +3,7 @@
 package llm
 
 import (
+	"agent-core/internal/llm/v2/handlers"
 	"log"
 	"net/http"
 )
@@ -105,6 +106,38 @@ func RegisterHandlers() http.Handler {
 	mux.HandleFunc("/projects/create", logRequest("/projects/create", ProjectCreatorHandler))
 	mux.HandleFunc("/projects/assist", logRequest("/projects/assist", ProjectAssistantHandler))
 	mux.HandleFunc("/projects/translate-milestones", logRequest("/projects/translate-milestones", MilestoneTranslatorHandler))
+
+	// ============================================================================
+	// V2 Endpoints - Memory Architecture Integration
+	// ============================================================================
+
+	// Tasks Agent V2 endpoints
+	mux.HandleFunc("/tasks/v2/generate-suggestions", logRequest("/tasks/v2/generate-suggestions", handlers.TasksGenerateSuggestionsV2Handler))
+	mux.HandleFunc("/tasks/v2/prioritize", logRequest("/tasks/v2/prioritize", handlers.TasksPrioritizeV2Handler))
+	mux.HandleFunc("/tasks/v2/break-down", logRequest("/tasks/v2/break-down", handlers.TasksBreakDownV2Handler))
+	mux.HandleFunc("/tasks/v2/insights", logRequest("/tasks/v2/insights", handlers.TasksInsightsV2Handler))
+	mux.HandleFunc("/tasks/v2/chat", logRequest("/tasks/v2/chat", handlers.TasksChatV2Handler))
+
+	// Reflection Agent V2 endpoints
+	mux.HandleFunc("/reflection/v2/generate-questions", logRequest("/reflection/v2/generate-questions", handlers.ReflectionGenerateQuestionsV2Handler))
+	mux.HandleFunc("/reflection/v2/generate-journal", logRequest("/reflection/v2/generate-journal", handlers.ReflectionGenerateJournalV2Handler))
+	mux.HandleFunc("/reflection/v2/insights", logRequest("/reflection/v2/insights", handlers.ReflectionInsightsV2Handler))
+	mux.HandleFunc("/reflection/v2/quick-reflection", logRequest("/reflection/v2/quick-reflection", handlers.ReflectionQuickReflectionV2Handler))
+	mux.HandleFunc("/reflection/v2/chat", logRequest("/reflection/v2/chat", handlers.ReflectionChatV2Handler))
+
+	// Professor Agent V2 endpoints
+	mux.HandleFunc("/professor/v2/chat", logRequest("/professor/v2/chat", handlers.ProfessorChatV2Handler))
+	mux.HandleFunc("/professor/v2/generate-notes", logRequest("/professor/v2/generate-notes", handlers.ProfessorGenerateNotesV2Handler))
+	mux.HandleFunc("/professor/v2/insights", logRequest("/professor/v2/insights", handlers.ProfessorInsightsV2Handler))
+	mux.HandleFunc("/professor/v2/explain", logRequest("/professor/v2/explain", handlers.ProfessorExplainV2Handler))
+	mux.HandleFunc("/professor/v2/practice-questions", logRequest("/professor/v2/practice-questions", handlers.ProfessorPracticeQuestionsV2Handler))
+
+	// Feature flags management endpoints
+	mux.HandleFunc("/v2/feature-flags", logRequest("/v2/feature-flags", handlers.FeatureFlagsHandler))
+	mux.HandleFunc("/v2/feature-flags/stats", logRequest("/v2/feature-flags/stats", handlers.FeatureFlagsStatsHandler))
+	mux.HandleFunc("/v2/feature-flags/simulate", logRequest("/v2/feature-flags/simulate", handlers.FeatureFlagsSimulateHandler))
+
+	log.Println("[Router] V2 endpoints registered successfully")
 
 	return mux
 }

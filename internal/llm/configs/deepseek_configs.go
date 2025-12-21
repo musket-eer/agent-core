@@ -329,6 +329,106 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   2048,
 		ClientName:  "general",
 	},
+
+	// ============================================================================
+	// V2 Endpoints - Memory Architecture Integration
+	// ============================================================================
+
+	// Tasks Agent V2
+	"/tasks/v2/generate-suggestions": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	"/tasks/v2/prioritize": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	"/tasks/v2/break-down": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	"/tasks/v2/insights": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	"/tasks/v2/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   1024,
+		ClientName:  "chat",
+	},
+
+	// Reflection Agent V2
+	"/reflection/v2/generate-questions": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1024,
+		ClientName:  "general",
+	},
+	"/reflection/v2/generate-journal": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	"/reflection/v2/insights": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	"/reflection/v2/quick-reflection": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   1536,
+		ClientName:  "general",
+	},
+	"/reflection/v2/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   1024,
+		ClientName:  "chat",
+	},
+
+	// Professor Agent V2
+	"/professor/v2/chat": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2048,
+		ClientName:  "chat",
+	},
+	"/professor/v2/generate-notes": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   3000,
+		ClientName:  "general",
+	},
+	"/professor/v2/insights": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.6,
+		MaxTokens:   1500,
+		ClientName:  "general",
+	},
+	"/professor/v2/explain": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.7,
+		MaxTokens:   2000,
+		ClientName:  "general",
+	},
+	"/professor/v2/practice-questions": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.8,
+		MaxTokens:   2500,
+		ClientName:  "general",
+	},
 }
 
 // GetDeepseekConfig returns the DeepseekConfig for a given endpoint.

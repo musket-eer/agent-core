@@ -1,0 +1,22 @@
+{
+  "agentId": "professor",
+  "userId": "test-user-123",
+  "sessionId": "professor-session-789",
+  "componentType": "lesson-notes",
+  "context": {
+    "userInstructions": "Include code examples and visual diagrams. Keep explanations concise.",
+    "sessionMetadata": "Device: Desktop | Time: Afternoon",
+    "userMemory": "Name: Sarah | Education: Undergraduate | Learning Style: Visual | Prefers hands-on examples",
+    "conversationSummaries": "Completed: React basics, Components, Props | Currently learning: State management",
+    "currentSession": "",
+    "componentContext": "Course: Web Development | Progress: 60% complete | Last lesson: Props and Components"
+  },
+  "messages": [],
+  "courseTitle": "Web Development",
+  "courseDescription": "Learn modern web development with React",
+  "courseDifficultyLevel": "intermediate",
+  "lessonTitle": "Introduction to React Hooks",
+  "lessonObjective": "Understand useState and useEffect hooks with practical examples",
+  "educationLevel": "undergraduate",
+  "learningStyle": "visual"
+}

@@ -1,0 +1,41 @@
+{
+  "agentId": "reflection",
+  "userId": "test-user-123",
+  "sessionId": "session-789",
+  "componentType": "task-reflection",
+  "componentId": "task-456",
+  "context": {
+    "userInstructions": "Keep reflections under 50 words. Focus on actionable insights.",
+    "sessionMetadata": "Device: Mobile | Time: Evening",
+    "userMemory": "Name: Mike | Reflection Style: Analytical | Prefers data-driven insights",
+    "conversationSummaries": "Pattern observed: Underestimates UI work by 20-30% consistently",
+    "currentSession": "",
+    "componentContext": "Task: Build React Dashboard | Complexity: High | Estimated: 2h | Actual: 2.5h"
+  },
+  "messages": [],
+  "requestData": {
+    "taskId": "task-456",
+    "taskInfo": {
+      "title": "Build React Dashboard",
+      "description": "Create admin dashboard with charts",
+      "priority": "high"
+    },
+    "timeData": {
+      "estimatedMinutes": 120,
+      "timeSpent": 9000,
+      "startedAt": "2024-12-10T14:00:00Z",
+      "completedAt": "2024-12-10T16:30:00Z"
+    },
+    "completionData": {
+      "completed": true,
+      "taskOutcome": "success",
+      "completionPercentage": 100,
+      "productivityRating": 8
+    },
+    "userResponses": {
+      "whatWentWell": "Chart integration was smooth",
+      "whatWasChallenging": "Responsive layout took longer than expected",
+      "whatILearned": "CSS Grid is powerful for dashboards"
+    }
+  }
+}

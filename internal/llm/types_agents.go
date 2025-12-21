@@ -1,7 +1,11 @@
 package llm
 
+import (
+	"agent-core/internal/llm/v2/types"
+)
+
 // ============================================================================
-// Professor Agent Types
+// Agent Types - Shared across multiple agents
 // ============================================================================
 
 type ProfessorChatRequest struct {
@@ -288,12 +292,25 @@ type TopicResults struct {
 // ============================================================================
 
 type ProjectsChatRequest struct {
+	// Legacy V1 fields
 	Message        string                 `json:"message"`
 	UserID         string                 `json:"userId"`
 	UserName       string                 `json:"userName"`
 	ChatHistory    []ChatMessage          `json:"chatHistory"`
 	ProjectContext map[string]interface{} `json:"projectContext"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ProjectsChatRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ProjectsChatRequest) GetUserID() string              { return r.UserID }
+func (r ProjectsChatRequest) GetAgentID() string             { return r.AgentID }
 
 type ProjectsChatResponse struct {
 	Response    string   `json:"response"`
@@ -301,12 +318,25 @@ type ProjectsChatResponse struct {
 }
 
 type ProjectsSuggestionsRequest struct {
+	// Legacy V1 fields
 	UserID           string   `json:"userId"`
 	Interests        []string `json:"interests"`
 	CareerGoals      string   `json:"careerGoals"`
 	CompletedCourses []string `json:"completedCourses"`
 	SkillLevel       string   `json:"skillLevel"` // "beginner", "intermediate", "advanced"
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ProjectsSuggestionsRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ProjectsSuggestionsRequest) GetUserID() string              { return r.UserID }
+func (r ProjectsSuggestionsRequest) GetAgentID() string             { return r.AgentID }
 
 type ProjectsSuggestionsResponse struct {
 	Suggestions []ProjectSuggestion `json:"suggestions"`
@@ -323,11 +353,24 @@ type ProjectSuggestion struct {
 }
 
 type ProjectsHelpRequest struct {
+	// Legacy V1 fields
 	UserID      string                 `json:"userId"`
 	Project     map[string]interface{} `json:"project"`
 	Question    string                 `json:"question"`
 	ChatHistory []ChatMessage          `json:"chatHistory"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ProjectsHelpRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ProjectsHelpRequest) GetUserID() string              { return r.UserID }
+func (r ProjectsHelpRequest) GetAgentID() string             { return r.AgentID }
 
 type ProjectsHelpResponse struct {
 	Response  string     `json:"response"`
@@ -336,9 +379,22 @@ type ProjectsHelpResponse struct {
 }
 
 type ProjectsBreakDownRequest struct {
+	// Legacy V1 fields
 	UserID  string                 `json:"userId"`
 	Project map[string]interface{} `json:"project"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ProjectsBreakDownRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ProjectsBreakDownRequest) GetUserID() string              { return r.UserID }
+func (r ProjectsBreakDownRequest) GetAgentID() string             { return r.AgentID }
 
 type ProjectsBreakDownResponse struct {
 	Milestones []ProjectMilestone `json:"milestones"`
@@ -354,10 +410,23 @@ type ProjectMilestone struct {
 }
 
 type ProjectsResourcesRequest struct {
+	// Legacy V1 fields
 	UserID    string                 `json:"userId"`
 	Project   map[string]interface{} `json:"project"`
 	Milestone map[string]interface{} `json:"milestone"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r ProjectsResourcesRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r ProjectsResourcesRequest) GetUserID() string              { return r.UserID }
+func (r ProjectsResourcesRequest) GetAgentID() string             { return r.AgentID }
 
 type ProjectsResourcesResponse struct {
 	Resources []ProjectResource `json:"resources"`

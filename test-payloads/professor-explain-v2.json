@@ -1,0 +1,21 @@
+{
+  "agentId": "professor",
+  "userId": "test-user-123",
+  "sessionId": "professor-session-202",
+  "componentType": "concept-explanation",
+  "context": {
+    "userInstructions": "Use analogies and real-world examples. Break down complex topics.",
+    "sessionMetadata": "Device: Tablet | Time: Morning",
+    "userMemory": "Name: Emma | Education: Undergraduate | Learning Style: Conceptual | Prefers big-picture understanding",
+    "conversationSummaries": "Recently learned: Components, Props, State | Currently exploring: Advanced patterns",
+    "currentSession": "",
+    "componentContext": "Lesson: Advanced React Patterns | Topic: Custom Hooks"
+  },
+  "messages": [],
+  "concept": "Custom React Hooks",
+  "conceptContext": {
+    "relatedTopics": ["useState", "useEffect", "Component Reusability"],
+    "prerequisiteKnowledge": "Basic hooks understanding"
+  },
+  "difficulty": "intermediate"
+}

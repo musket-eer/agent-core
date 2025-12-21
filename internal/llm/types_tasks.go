@@ -1,10 +1,15 @@
 package llm
 
+import (
+	"agent-core/internal/llm/v2/types"
+)
+
 // ============================================================================
 // Tasks Agent Types
 // ============================================================================
 
 type TasksGenerateSuggestionsRequest struct {
+	// Legacy V1 fields
 	UserID              string          `json:"userId"`
 	LearningGoals       []string        `json:"learningGoals"`
 	CurrentCourses      []CourseDetails `json:"currentCourses"`
@@ -12,6 +17,29 @@ type TasksGenerateSuggestionsRequest struct {
 	PreferredDifficulty string          `json:"preferredDifficulty"` // "easy", "medium", "hard"
 	Interests           []string        `json:"interests"`
 	UpcomingDeadlines   []Deadline      `json:"upcomingDeadlines"`
+
+	// V2 fields (optional for backward compatibility)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
+}
+
+// GetV2Context implements V2CompatibleRequest interface
+func (r TasksGenerateSuggestionsRequest) GetV2Context() *types.V2Context {
+	return r.Context
+}
+
+// GetUserID implements V2CompatibleRequest interface
+func (r TasksGenerateSuggestionsRequest) GetUserID() string {
+	return r.UserID
+}
+
+// GetAgentID implements V2CompatibleRequest interface
+func (r TasksGenerateSuggestionsRequest) GetAgentID() string {
+	return r.AgentID
 }
 
 type Deadline struct {
@@ -38,10 +66,23 @@ type SuggestedTask struct {
 }
 
 type TasksPrioritizeRequest struct {
+	// Legacy V1 fields
 	UserID      string                 `json:"userId"`
 	Tasks       []Task                 `json:"tasks"`
 	UserContext map[string]interface{} `json:"userContext"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r TasksPrioritizeRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r TasksPrioritizeRequest) GetUserID() string              { return r.UserID }
+func (r TasksPrioritizeRequest) GetAgentID() string             { return r.AgentID }
 
 type Task struct {
 	ID                string   `json:"id"`
@@ -74,9 +115,22 @@ type TimeAllocation struct {
 }
 
 type TasksBreakDownRequest struct {
+	// Legacy V1 fields
 	Task        TaskDetail             `json:"task"`
 	UserContext map[string]interface{} `json:"userContext"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r TasksBreakDownRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r TasksBreakDownRequest) GetUserID() string              { return "" }
+func (r TasksBreakDownRequest) GetAgentID() string             { return r.AgentID }
 
 type TaskDetail struct {
 	What         string `json:"what"`
@@ -99,13 +153,26 @@ type Subtask struct {
 }
 
 type TasksProductivityInsightsRequest struct {
+	// Legacy V1 fields
 	UserID              string               `json:"userId"`
 	Timeframe           string               `json:"timeframe"` // "day", "week", "month"
 	CompletedTasks      []CompletedTask      `json:"completedTasks"`
 	PendingTasks        []PendingTask        `json:"pendingTasks"`
 	TaskCompletionTimes []TaskCompletionTime `json:"taskCompletionTimes"`
 	UrgencyDistribution UrgencyDistribution  `json:"urgencyDistribution"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r TasksProductivityInsightsRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r TasksProductivityInsightsRequest) GetUserID() string              { return r.UserID }
+func (r TasksProductivityInsightsRequest) GetAgentID() string             { return r.AgentID }
 
 type CompletedTask struct {
 	ID           string `json:"id"`
@@ -155,11 +222,24 @@ type OptimalWorkTime struct {
 }
 
 type TasksGenerateScheduleRequest struct {
+	// Legacy V1 fields
 	UserID      string              `json:"userId"`
 	Tasks       []Task              `json:"tasks"`
 	Constraints ScheduleConstraints `json:"constraints"`
 	Preferences SchedulePreferences `json:"preferences"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r TasksGenerateScheduleRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r TasksGenerateScheduleRequest) GetUserID() string              { return r.UserID }
+func (r TasksGenerateScheduleRequest) GetAgentID() string             { return r.AgentID }
 
 type ScheduleConstraints struct {
 	AvailableTimeSlots []TimeSlot       `json:"availableTimeSlots"`
@@ -237,12 +317,25 @@ type TaskRecommendation struct {
 }
 
 type TasksMotivationRequest struct {
+	// Legacy V1 fields
 	UserID             string   `json:"userId"`
 	CompletedToday     int      `json:"completedToday"`
 	Streak             int      `json:"streak"`
 	RecentAchievements []string `json:"recentAchievements"`
 	CurrentChallenges  []string `json:"currentChallenges"`
+
+	// V2 fields (optional)
+	AgentID       string            `json:"agentId,omitempty"`
+	SessionID     string            `json:"sessionId,omitempty"`
+	ComponentType string            `json:"componentType,omitempty"`
+	ComponentID   string            `json:"componentId,omitempty"`
+	Context       *types.V2Context  `json:"context,omitempty"`
+	Messages      []types.V2Message `json:"messages,omitempty"`
 }
+
+func (r TasksMotivationRequest) GetV2Context() *types.V2Context { return r.Context }
+func (r TasksMotivationRequest) GetUserID() string              { return r.UserID }
+func (r TasksMotivationRequest) GetAgentID() string             { return r.AgentID }
 
 type TasksMotivationResponse struct {
 	Message string `json:"message"`

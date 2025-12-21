@@ -1,0 +1,26 @@
+{
+  "agentId": "professor",
+  "userId": "test-user-123",
+  "sessionId": "professor-session-456",
+  "componentType": "lesson-chat",
+  "context": {
+    "userInstructions": "Use simple language and lots of examples. I prefer visual explanations.",
+    "sessionMetadata": "Device: Desktop | Browser: Chrome | Time: Morning",
+    "userMemory": "Name: John Doe | Education: Undergraduate | Learning Style: Visual | Completed 15 lessons",
+    "conversationSummaries": "Recent topics: useState, useEffect, custom hooks | Common questions: hook dependencies, state management",
+    "currentSession": "User: What is useState?\nAssistant: useState is a React Hook that lets you add state to functional components...",
+    "componentContext": "Current Lesson: Introduction to React Hooks | Course: Web Development | Difficulty: Intermediate"
+  },
+  "messages": [],
+  "lessonTitle": "Introduction to React Hooks",
+  "studentMessage": "Can you explain useState with a practical example?",
+  "courseDetails": {
+    "title": "Web Development",
+    "difficulty_level": "intermediate"
+  },
+  "studentProfile": {
+    "name": "John Doe",
+    "education_level": "undergraduate",
+    "learning_style": "visual"
+  }
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"agent-core/internal/cache"
 	"agent-core/internal/llm/configs"
@@ -160,17 +161,38 @@ func handleLLMRequest(w http.ResponseWriter, req interface{}, promptKey string, 
 		return nil
 	}
 
-	// Extract persona information if available
-	agentID, persona := ExtractPersona(req)
+	// Check if this is a V2 request with memory context
+	logRequestType(req, endpoint)
+	var systemPrompt string
 
-	// Build persona-aware system prompt
-	systemPrompt := BuildPersonaSystemPrompt(agentID, persona, basePrompt)
+	if isV2Request(req) {
+		// V2: Use memory-based context extraction
+		log.Printf("[handleLLMRequest] Using V2 memory context for endpoint: %s", endpoint)
+		contextData := extractV2ContextCompat(req)
+		systemPrompt = buildV2SystemPrompt(basePrompt, contextData)
+	} else {
+		// V1: Use legacy persona-based system
+		log.Printf("[handleLLMRequest] Using V1 persona system for endpoint: %s", endpoint)
+		agentID, persona := ExtractPersona(req)
+		systemPrompt = BuildPersonaSystemPrompt(agentID, persona, basePrompt)
+	}
 
 	userMessage, _ := json.Marshal(req)
+
+	// Build the final enriched prompt
+	enrichedPrompt := systemPrompt + "\n" + string(userMessage)
+
+	// Print the entire enriched prompt before sending to AI
+	log.Printf("\n" + strings.Repeat("=", 80))
+	log.Printf("[ENRICHED PROMPT] Endpoint: %s", endpoint)
+	log.Printf(strings.Repeat("=", 80))
+	log.Printf("%s", enrichedPrompt)
+	log.Printf(strings.Repeat("=", 80) + "\n")
+
 	payload := map[string]interface{}{
 		"model": "deepseek-chat",
 		"input": map[string]string{
-			"prompt": systemPrompt + "\n" + string(userMessage),
+			"prompt": enrichedPrompt,
 		},
 	}
 

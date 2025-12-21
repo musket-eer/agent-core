@@ -51,12 +51,12 @@ const (
 
 // CreateTaskPayload represents the payload for create_task command
 type CreateTaskPayload struct {
-	Title       string  `json:"title"`
-	When        string  `json:"when,omitempty"`
-	Priority    string  `json:"priority,omitempty"`
-	ProjectID   *string `json:"projectId,omitempty"`
-	CourseID    *string `json:"courseId,omitempty"`
-	Description string  `json:"description,omitempty"`
+	Title        string  `json:"title"`
+	When         string  `json:"when,omitempty"`
+	Priority     string  `json:"priority,omitempty"`
+	ProjectTitle *string `json:"projectTitle,omitempty"`
+	CourseTitle  *string `json:"courseTitle,omitempty"`
+	Description  string  `json:"description,omitempty"`
 }
 
 // CompleteTaskPayload represents the payload for complete_task command

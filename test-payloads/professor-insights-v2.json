@@ -1,0 +1,16 @@
+{
+  "agentId": "professor",
+  "userId": "test-user-123",
+  "sessionId": "professor-session-101",
+  "componentType": "insights",
+  "context": {
+    "userInstructions": "Provide data-driven insights with specific recommendations.",
+    "sessionMetadata": "Device: Mobile | Time: Evening",
+    "userMemory": "Name: Mike | Education: Graduate | Completed 25 lessons | Average time: 45 min/lesson",
+    "conversationSummaries": "Strong in: Theory, Concepts | Weak in: Practical implementation | Asks detailed questions",
+    "currentSession": "",
+    "componentContext": "Course: Advanced React | Progress: 75% | Recent activity: High engagement"
+  },
+  "messages": [],
+  "timeframe": "month"
+}

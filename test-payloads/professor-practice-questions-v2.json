@@ -1,0 +1,19 @@
+{
+  "agentId": "professor",
+  "userId": "test-user-123",
+  "sessionId": "professor-session-303",
+  "componentType": "practice-questions",
+  "context": {
+    "userInstructions": "Create challenging but fair questions. Include detailed explanations.",
+    "sessionMetadata": "Device: Desktop | Time: Afternoon",
+    "userMemory": "Name: Alex | Education: Graduate | Learning Style: Analytical | Prefers problem-solving",
+    "conversationSummaries": "Strong performance on: Theory questions | Needs practice: Code implementation",
+    "currentSession": "",
+    "componentContext": "Lesson: React Hooks | Completed: 80% | Ready for assessment"
+  },
+  "messages": [],
+  "topic": "React Hooks (useState and useEffect)",
+  "difficulty": "intermediate",
+  "questionCount": 3,
+  "questionType": "multiple-choice"
+}
