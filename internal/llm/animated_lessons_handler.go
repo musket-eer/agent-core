@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"agent-core/internal/cache"
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/llm/utils"
 	"agent-core/internal/prompt"
@@ -151,6 +152,16 @@ func GenerateAnimatedKnowledgeGraphHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	cachePayload, _ := json.Marshal(req)
+	cacheKey := animatedKnowledgeGraphEndpoint + ":" + string(cachePayload)
+	if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+		var cachedResp AnimatedLessonResponse
+		if err := json.Unmarshal(cached, &cachedResp); err == nil {
+			writeAnimatedJSON(w, http.StatusOK, cachedResp)
+			return
+		}
+	}
+
 	start := time.Now()
 	resp, modelName, validationStatus, err := generateAnimatedKnowledgeGraph(context.Background(), req)
 	latency := time.Since(start).Milliseconds()
@@ -166,6 +177,9 @@ func GenerateAnimatedKnowledgeGraphHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if b, err := json.Marshal(resp); err == nil {
+		_ = cache.Get().CacheByPayload(cacheKey, b)
+	}
 	writeAnimatedJSON(w, http.StatusOK, resp)
 }
 
@@ -210,6 +224,16 @@ func GenerateAnimatedSlideContentHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	cachePayload, _ := json.Marshal(req)
+	cacheKey := animatedSlideContentEndpoint + ":" + string(cachePayload)
+	if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+		var cachedResp AnimatedSlideContentResponse
+		if err := json.Unmarshal(cached, &cachedResp); err == nil {
+			writeAnimatedJSON(w, http.StatusOK, cachedResp)
+			return
+		}
+	}
+
 	start := time.Now()
 	resp, modelName, validationStatus, err := generateAnimatedSlideContent(context.Background(), req)
 	latency := time.Since(start).Milliseconds()
@@ -225,6 +249,9 @@ func GenerateAnimatedSlideContentHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if b, err := json.Marshal(resp); err == nil {
+		_ = cache.Get().CacheByPayload(cacheKey, b)
+	}
 	writeAnimatedJSON(w, http.StatusOK, resp)
 }
 

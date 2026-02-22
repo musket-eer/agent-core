@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"agent-core/internal/cache"
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/llm/utils"
 	"agent-core/internal/prompt"
@@ -60,6 +61,16 @@ func GenerateCourseGraphHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cachePayload, _ := json.Marshal(req)
+	cacheKey := generateCourseGraphEndpoint + ":" + string(cachePayload)
+	if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+		var cachedResp GenerateCourseGraphResponse
+		if err := json.Unmarshal(cached, &cachedResp); err == nil {
+			writeCourseGraphJSON(w, 200, cachedResp)
+			return
+		}
+	}
+
 	start := time.Now()
 	resp, model, status, stats, err := generateCourseGraph(context.Background(), req)
 	latency := time.Since(start).Milliseconds()
@@ -73,6 +84,9 @@ func GenerateCourseGraphHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		writeCourseGraphError(w, 502, "LLM_FAILURE", "failed to generate course graph")
 		return
+	}
+	if b, err := json.Marshal(resp); err == nil {
+		_ = cache.Get().CacheByPayload(cacheKey, b)
 	}
 	writeCourseGraphJSON(w, 200, resp)
 }
@@ -100,6 +114,16 @@ func GenerateLessonIndexPlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cachePayload, _ := json.Marshal(req)
+	cacheKey := generateLessonIndexPlanEndpoint + ":" + string(cachePayload)
+	if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+		var cachedResp GenerateLessonIndexPlanResponse
+		if err := json.Unmarshal(cached, &cachedResp); err == nil {
+			writeCourseGraphJSON(w, 200, cachedResp)
+			return
+		}
+	}
+
 	start := time.Now()
 	resp, model, status, repair, err := generateLessonIndexPlan(context.Background(), req)
 	latency := time.Since(start).Milliseconds()
@@ -113,6 +137,9 @@ func GenerateLessonIndexPlanHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		writeCourseGraphError(w, 502, "LLM_FAILURE", "failed to generate lesson index plan")
 		return
+	}
+	if b, err := json.Marshal(resp); err == nil {
+		_ = cache.Get().CacheByPayload(cacheKey, b)
 	}
 	writeCourseGraphJSON(w, 200, resp)
 }

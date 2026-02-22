@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"agent-core/internal/cache"
 	"agent-core/internal/llm/configs"
 	"agent-core/internal/llm/utils"
 	"agent-core/internal/prompt"
@@ -48,6 +49,17 @@ func GenerateTaskReflectionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cachePayload, _ := json.Marshal(req)
+	cacheKey := "/reflection/generate-task-reflection:" + string(cachePayload)
+	if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+		var cachedResp TaskReflectionResponse
+		if err := json.Unmarshal(cached, &cachedResp); err == nil {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(cachedResp)
+			return
+		}
+	}
+
 	resp, err := generateTaskReflectionCanonical(context.Background(), req)
 	if err != nil {
 		if strings.Contains(err.Error(), "LLM_INVALID_OUTPUT") {
@@ -58,6 +70,9 @@ func GenerateTaskReflectionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if b, err := json.Marshal(resp); err == nil {
+		_ = cache.Get().CacheByPayload(cacheKey, b)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
 }
