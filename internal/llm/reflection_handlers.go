@@ -1,10 +1,16 @@
 package llm
 
 import (
+	"agent-core/internal/llm/configs"
 	"agent-core/internal/llm/utils"
+	"agent-core/internal/prompt"
+	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // ReflectionGeneratePromptsHandler - POST /reflection/generate-prompts
@@ -33,29 +39,329 @@ func GenerateTaskReflectionHandler(w http.ResponseWriter, r *http.Request) {
 	var req TaskReflectionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Printf("[GenerateTaskReflectionHandler] Failed to decode request: %v", err)
-		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
+		writeTaskReflectionError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
 		return
 	}
-	response := handleLLMRequest(w, req, "taskReflectionPrompt", "/reflection/generate-task-reflection")
-	if response != nil {
-		var resp TaskReflectionResponse
-		if err := json.Unmarshal(response, &resp); err != nil {
-			resp = TaskReflectionResponse{
-				Reflection:       string(response),
-				Insights:         []string{},
-				Patterns:         []string{},
-				Recommendations:  []string{},
-				DepthScore:       0,
-				EmotionalTone:    "neutral",
-				KeyLearnings:     []string{},
-				ChallengesFaced:  []string{},
-				SolutionsApplied: []string{},
-				SkillsPracticed:  []string{},
+
+	if strings.TrimSpace(req.UserID) == "" || strings.TrimSpace(req.TaskID) == "" {
+		writeTaskReflectionError(w, http.StatusBadRequest, "INVALID_REQUEST", "userId and taskId are required")
+		return
+	}
+
+	resp, err := generateTaskReflectionCanonical(context.Background(), req)
+	if err != nil {
+		if strings.Contains(err.Error(), "LLM_INVALID_OUTPUT") {
+			writeTaskReflectionError(w, http.StatusBadGateway, "LLM_INVALID_OUTPUT", "invalid reflection output")
+			return
+		}
+		writeTaskReflectionError(w, http.StatusBadGateway, "LLM_FAILURE", "failed to generate task reflection")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func generateTaskReflectionCanonical(ctx context.Context, req TaskReflectionRequest) (TaskReflectionResponse, error) {
+	cfg, ok := configs.GetDeepseekConfig("/reflection/generate-task-reflection")
+	if !ok {
+		cfg, _ = configs.GetDeepseekConfig("/chat")
+	}
+
+	clientName := cfg.ClientName
+	if clientName == "" {
+		clientName = "general"
+	}
+	client, err := GetLLMClient(clientName)
+	if err != nil {
+		return TaskReflectionResponse{}, err
+	}
+
+	systemPrompt, err := prompt.GetPrompt("taskReflectionPrompt")
+	if err != nil {
+		return TaskReflectionResponse{}, err
+	}
+
+	reqJSON, _ := json.Marshal(req)
+	basePrompt := systemPrompt + "\n" + string(reqJSON)
+
+	raw, err := callLLMWithTimeout(ctx, client, "/reflection/generate-task-reflection", map[string]interface{}{
+		"model":       cfg.ModelId,
+		"temperature": 0.2,
+		"max_tokens":  1400,
+		"response_format": map[string]interface{}{
+			"type": "json_object",
+		},
+		"input": map[string]string{"prompt": basePrompt},
+	})
+	if err != nil {
+		return TaskReflectionResponse{}, err
+	}
+
+	resp, violations, parseErr := normalizeTaskReflectionOutput(raw)
+	if parseErr == nil && len(violations) == 0 {
+		return resp, nil
+	}
+
+	repairPrompt := buildTaskReflectionRepairPrompt(basePrompt, raw, violations, parseErr)
+	repairedRaw, repairErr := callLLMWithTimeout(ctx, client, "/reflection/generate-task-reflection", map[string]interface{}{
+		"model":       cfg.ModelId,
+		"temperature": 0.2,
+		"max_tokens":  1400,
+		"response_format": map[string]interface{}{
+			"type": "json_object",
+		},
+		"input": map[string]string{"prompt": repairPrompt},
+	})
+	if repairErr != nil {
+		return TaskReflectionResponse{}, repairErr
+	}
+
+	finalResp, finalViolations, finalParseErr := normalizeTaskReflectionOutput(repairedRaw)
+	if finalParseErr != nil || len(finalViolations) > 0 {
+		log.Printf("[GenerateTaskReflectionHandler] repair failed parse_error=%v violations=%v", finalParseErr, finalViolations)
+		return TaskReflectionResponse{}, fmt.Errorf("LLM_INVALID_OUTPUT")
+	}
+	return finalResp, nil
+}
+
+func normalizeTaskReflectionOutput(raw string) (TaskReflectionResponse, []string, error) {
+	cleaned := utils.CleanJSONResponse(raw)
+	var payload map[string]interface{}
+	decoder := json.NewDecoder(bytes.NewReader([]byte(cleaned)))
+	if err := decoder.Decode(&payload); err != nil {
+		return TaskReflectionResponse{}, nil, err
+	}
+
+	resp := TaskReflectionResponse{
+		Insights:         toStringArray(payload["insights"]),
+		Patterns:         toStringArray(payload["patterns"]),
+		Recommendations:  toStringArray(payload["recommendations"]),
+		KeyLearnings:     toStringArray(payload["keyLearnings"]),
+		ChallengesFaced:  toStringArray(payload["challengesFaced"]),
+		SolutionsApplied: toStringArray(payload["solutionsApplied"]),
+		SkillsPracticed:  toStringArray(payload["skillsPracticed"]),
+		EmotionalTone:    normalizeTone(toString(payload["emotionalTone"])),
+		DepthScore:       toFloat(payload["depthScore"]),
+	}
+
+	markdown := toString(payload["reflectionMarkdown"])
+	legacyText := toString(payload["reflection"])
+	if legacyText == "" {
+		legacyText = toString(payload["aiReflection"])
+	}
+	if legacyText == "" {
+		legacyText = toString(payload["response"])
+	}
+
+	if markdown == "" {
+		markdown = legacyText
+	}
+
+	if looksLikeJSONObject(markdown) {
+		var nested map[string]interface{}
+		if err := json.Unmarshal([]byte(markdown), &nested); err == nil {
+			if len(resp.Insights) == 0 {
+				resp.Insights = toStringArray(nested["insights"])
+			}
+			if len(resp.Patterns) == 0 {
+				resp.Patterns = toStringArray(nested["patterns"])
+			}
+			if len(resp.Recommendations) == 0 {
+				resp.Recommendations = toStringArray(nested["recommendations"])
+			}
+			if len(resp.KeyLearnings) == 0 {
+				resp.KeyLearnings = toStringArray(nested["keyLearnings"])
+			}
+			if len(resp.ChallengesFaced) == 0 {
+				resp.ChallengesFaced = toStringArray(nested["challengesFaced"])
+			}
+			if len(resp.SolutionsApplied) == 0 {
+				resp.SolutionsApplied = toStringArray(nested["solutionsApplied"])
+			}
+			if len(resp.SkillsPracticed) == 0 {
+				resp.SkillsPracticed = toStringArray(nested["skillsPracticed"])
+			}
+			markdown = toString(nested["reflection"])
+		}
+	}
+
+	resp.ReflectionMarkdown = buildTaskReflectionMarkdown(markdown, resp)
+	resp.Reflection = resp.ReflectionMarkdown
+	resp.AIReflection = resp.ReflectionMarkdown
+	resp.Response = resp.ReflectionMarkdown
+
+	violations := validateTaskReflectionCanonical(resp)
+	return resp, violations, nil
+}
+
+func validateTaskReflectionCanonical(resp TaskReflectionResponse) []string {
+	var violations []string
+	if strings.TrimSpace(resp.ReflectionMarkdown) == "" {
+		violations = append(violations, "reflectionMarkdown missing")
+	}
+	if looksLikeJSONObject(resp.ReflectionMarkdown) {
+		violations = append(violations, "reflectionMarkdown contains raw JSON object")
+	}
+	if len(resp.ReflectionMarkdown) > 1800 {
+		violations = append(violations, "reflectionMarkdown exceeds 1800 chars")
+	}
+	if !isStringSliceValid(resp.Insights) {
+		violations = append(violations, "insights must be string[]")
+	}
+	if !isStringSliceValid(resp.Patterns) {
+		violations = append(violations, "patterns must be string[]")
+	}
+	if !isStringSliceValid(resp.Recommendations) {
+		violations = append(violations, "recommendations must be string[]")
+	}
+	if !isStringSliceValid(resp.KeyLearnings) {
+		violations = append(violations, "keyLearnings must be string[]")
+	}
+	if !isStringSliceValid(resp.ChallengesFaced) {
+		violations = append(violations, "challengesFaced must be string[]")
+	}
+	if !isStringSliceValid(resp.SolutionsApplied) {
+		violations = append(violations, "solutionsApplied must be string[]")
+	}
+	if !isStringSliceValid(resp.SkillsPracticed) {
+		violations = append(violations, "skillsPracticed must be string[]")
+	}
+	return violations
+}
+
+func buildTaskReflectionMarkdown(reflection string, resp TaskReflectionResponse) string {
+	reflection = strings.TrimSpace(reflection)
+	if reflection == "" {
+		reflection = "Task reflection captured and normalized."
+	}
+
+	var b strings.Builder
+	b.WriteString("**Reflection:**\n")
+	b.WriteString(reflection)
+	b.WriteString("\n\n")
+
+	writeMarkdownListSection(&b, "Key Insights", resp.Insights)
+	writeMarkdownListSection(&b, "Patterns Observed", resp.Patterns)
+	writeMarkdownListSection(&b, "Recommendations", resp.Recommendations)
+	writeMarkdownListSection(&b, "Key Learnings", resp.KeyLearnings)
+
+	md := strings.TrimSpace(b.String())
+	if len(md) > 1800 {
+		md = md[:1800]
+	}
+	return md
+}
+
+func writeMarkdownListSection(b *strings.Builder, title string, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	b.WriteString("**")
+	b.WriteString(title)
+	b.WriteString(":**\n")
+	for _, v := range values {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		b.WriteString("- ")
+		b.WriteString(v)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+}
+
+func buildTaskReflectionRepairPrompt(basePrompt string, raw string, violations []string, parseErr error) string {
+	var b strings.Builder
+	b.WriteString("Return strict JSON with canonical task reflection fields only.\n")
+	if parseErr != nil {
+		b.WriteString("Violation: json_parse_error=" + parseErr.Error() + "\n")
+	}
+	for _, v := range violations {
+		b.WriteString("Violation: " + v + "\n")
+	}
+	b.WriteString("Required fields: reflectionMarkdown, insights, patterns, recommendations, keyLearnings, challengesFaced, solutionsApplied, skillsPracticed, emotionalTone, depthScore.\n")
+	b.WriteString("reflectionMarkdown must be Markdown (no JSON object text).\n")
+	b.WriteString("\nOriginal prompt:\n")
+	b.WriteString(basePrompt)
+	b.WriteString("\nPrevious output:\n")
+	b.WriteString(utils.CleanJSONResponse(raw))
+	return b.String()
+}
+
+func writeTaskReflectionError(w http.ResponseWriter, status int, code string, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"error": message,
+		"code":  code,
+	})
+}
+
+func toString(v interface{}) string {
+	if s, ok := v.(string); ok {
+		return strings.TrimSpace(s)
+	}
+	return ""
+}
+
+func toStringArray(v interface{}) []string {
+	raw, ok := v.([]interface{})
+	if !ok {
+		return []string{}
+	}
+	out := make([]string, 0, len(raw))
+	for _, it := range raw {
+		if s, ok := it.(string); ok {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				out = append(out, s)
 			}
 		}
-		finalBytes, _ := json.Marshal(resp)
-		w.Write(finalBytes)
 	}
+	return out
+}
+
+func toFloat(v interface{}) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	default:
+		return 0
+	}
+}
+
+func normalizeTone(tone string) string {
+	t := strings.ToLower(strings.TrimSpace(tone))
+	switch t {
+	case "positive", "neutral", "challenging", "mixed", "constructive":
+		return t
+	default:
+		return "neutral"
+	}
+}
+
+func looksLikeJSONObject(s string) bool {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "{") || !strings.HasSuffix(s, "}") {
+		return false
+	}
+	var obj map[string]interface{}
+	return json.Unmarshal([]byte(s), &obj) == nil
+}
+
+func isStringSliceValid(items []string) bool {
+	for _, item := range items {
+		if strings.TrimSpace(item) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // TaskPromptsHandler - POST /reflection/task-prompts

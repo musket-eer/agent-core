@@ -31,6 +31,8 @@ func RegisterHandlers() http.Handler {
 	// Existing endpoints
 	mux.HandleFunc("/generate-lesson", logRequest("/generate-lesson", GenerateLessonHandler))
 	mux.HandleFunc("/generate-course", logRequest("/generate-course", GenerateCourseHandler))
+	mux.HandleFunc("/generate-course-graph", logRequest("/generate-course-graph", GenerateCourseGraphHandler))
+	mux.HandleFunc("/generate-lesson-index-plan", logRequest("/generate-lesson-index-plan", GenerateLessonIndexPlanHandler))
 	mux.HandleFunc("/generate-notes", logRequest("/generate-notes", GenerateNotesHandler))
 	mux.HandleFunc("/generate-exams", logRequest("/generate-exams", GenerateExamsHandler))
 	mux.HandleFunc("/generate-resources", logRequest("/generate-resources", GenerateResourcesHandler))
@@ -66,6 +68,8 @@ func RegisterHandlers() http.Handler {
 	mux.HandleFunc("/courses/compare", logRequest("/courses/compare", CourseCompareHandler))
 	mux.HandleFunc("/courses/suggest-path", logRequest("/courses/suggest-path", CourseSuggestPathHandler))
 	mux.HandleFunc("/courses/chat", logRequest("/courses/chat", CourseChatHandler))
+	mux.HandleFunc("/lessons/animated-knowledge-graph", logRequest("/lessons/animated-knowledge-graph", GenerateAnimatedKnowledgeGraphHandler))
+	mux.HandleFunc("/lessons/animated-slide-content", logRequest("/lessons/animated-slide-content", GenerateAnimatedSlideContentHandler))
 
 	// Reflection Agent endpoints
 	mux.HandleFunc("/reflection/generate-prompts", logRequest("/reflection/generate-prompts", ReflectionGeneratePromptsHandler))

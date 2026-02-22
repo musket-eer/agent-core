@@ -249,16 +249,21 @@ func (r TaskReflectionRequest) GetUserID() string              { return r.UserID
 func (r TaskReflectionRequest) GetAgentID() string             { return r.AgentID }
 
 type TaskReflectionResponse struct {
-	Reflection       string   `json:"reflection"`
-	Insights         []string `json:"insights"`
-	Patterns         []string `json:"patterns"`
-	Recommendations  []string `json:"recommendations"`
-	DepthScore       float64  `json:"depthScore"`
-	EmotionalTone    string   `json:"emotionalTone"`
-	KeyLearnings     []string `json:"keyLearnings"`
-	ChallengesFaced  []string `json:"challengesFaced"`
-	SolutionsApplied []string `json:"solutionsApplied"`
-	SkillsPracticed  []string `json:"skillsPracticed"`
+	ReflectionMarkdown string   `json:"reflectionMarkdown"`
+	Insights           []string `json:"insights"`
+	Patterns           []string `json:"patterns"`
+	Recommendations    []string `json:"recommendations"`
+	KeyLearnings       []string `json:"keyLearnings"`
+	ChallengesFaced    []string `json:"challengesFaced"`
+	SolutionsApplied   []string `json:"solutionsApplied"`
+	SkillsPracticed    []string `json:"skillsPracticed"`
+	EmotionalTone      string   `json:"emotionalTone"`
+	DepthScore         float64  `json:"depthScore"`
+
+	// Backward-compatibility fields during migration
+	Reflection   string `json:"reflection,omitempty"`
+	AIReflection string `json:"aiReflection,omitempty"`
+	Response     string `json:"response,omitempty"`
 }
 
 type TaskPromptsRequest struct {

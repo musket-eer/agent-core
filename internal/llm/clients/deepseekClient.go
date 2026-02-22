@@ -1,9 +1,9 @@
 package clients
 
 import (
+	"agent-core/internal/llm/configs"
 	"context"
 	"fmt"
-	"agent-core/internal/llm/configs"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -51,6 +51,24 @@ func (c *DeepseekClient) Call(endpoint string, params map[string]interface{}) (s
 		Temperature: float32(config.Temperature),
 		MaxTokens:   config.MaxTokens,
 	}
+
+	if overrideTemp, ok := params["temperature"].(float64); ok {
+		req.Temperature = float32(overrideTemp)
+	}
+	if overrideMaxTokens, ok := params["max_tokens"].(int); ok && overrideMaxTokens > 0 {
+		req.MaxTokens = overrideMaxTokens
+	}
+	if seed, ok := params["seed"].(int); ok {
+		req.Seed = &seed
+	}
+	if responseFormat, ok := params["response_format"].(map[string]interface{}); ok {
+		if formatType, ok := responseFormat["type"].(string); ok && formatType == "json_object" {
+			req.ResponseFormat = &openai.ChatCompletionResponseFormat{
+				Type: openai.ChatCompletionResponseFormatTypeJSONObject,
+			}
+		}
+	}
+
 	resp, err := c.Client.CreateChatCompletion(context.Background(), req)
 	if err != nil {
 		return "", err

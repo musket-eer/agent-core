@@ -24,6 +24,18 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   2048,
 		ClientName:  "general",
 	},
+	"/generate-course-graph": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.2,
+		MaxTokens:   2800,
+		ClientName:  "general",
+	},
+	"/generate-lesson-index-plan": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.2,
+		MaxTokens:   2400,
+		ClientName:  "general",
+	},
 	"/generate-notes": {
 		ModelId:     "deepseek-chat",
 		Temperature: 1.0,
@@ -155,6 +167,18 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		Temperature: 0.8,
 		MaxTokens:   512,
 		ClientName:  "chat",
+	},
+	"/lessons/animated-knowledge-graph": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.2,
+		MaxTokens:   2200,
+		ClientName:  "general",
+	},
+	"/lessons/animated-slide-content": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.2,
+		MaxTokens:   1400,
+		ClientName:  "general",
 	},
 	// Reflection Agent endpoints
 	"/reflection/generate-prompts": {
