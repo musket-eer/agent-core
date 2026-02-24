@@ -48,6 +48,18 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   1024,
 		ClientName:  "general",
 	},
+	"/generate-exam": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.2,
+		MaxTokens:   2600,
+		ClientName:  "general",
+	},
+	"/submit-session": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.1,
+		MaxTokens:   400,
+		ClientName:  "general",
+	},
 	"/generate-resources": {
 		ModelId:     "deepseek-chat",
 		Temperature: 0.4,

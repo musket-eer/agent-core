@@ -47,6 +47,36 @@ func (u *UpstashClient) Store(key string, value []byte) error {
 	return nil
 }
 
+// Expire sets key TTL in seconds.
+func (u *UpstashClient) Expire(key string, seconds int) error {
+	url := fmt.Sprintf("%s/expire/%s/%d", u.RestUrl, key, seconds)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", u.RestToken))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upstash expire failed: %s", string(body))
+	}
+	return nil
+}
+
+// StoreWithTTL stores key then applies ttl.
+func (u *UpstashClient) StoreWithTTL(key string, value []byte, seconds int) error {
+	if err := u.Store(key, value); err != nil {
+		return err
+	}
+	if seconds <= 0 {
+		return nil
+	}
+	return u.Expire(key, seconds)
+}
 
 // Retrieve gets a value by key (as raw JSON string)
 func (u *UpstashClient) Retrieve(key string) ([]byte, error) {
@@ -80,7 +110,7 @@ func (u *UpstashClient) Retrieve(key string) ([]byte, error) {
 		return nil, err
 	}
 
-		return []byte(respObj.Result), nil
+	return []byte(respObj.Result), nil
 }
 
 // Check returns true if key exists in Upstash
