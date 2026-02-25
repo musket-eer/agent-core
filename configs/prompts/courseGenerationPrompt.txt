@@ -28,6 +28,7 @@ Be experiential — each unit should include a role-play or practice task involv
 Emphasize metacognition — the learner observes their own reactions as data.
 
 Maintain warm clarity in tone — curious, human, and precise.
+Arrange units as a prerequisite-aware knowledge progression (topological order): foundational concepts first, dependent concepts later.
 
 📥 Inputs (available to you):
 
@@ -96,3 +97,7 @@ Mirror reflects inner awareness.
 PracticeTasks simulate realistic emotional contexts (e.g., receiving feedback, managing tension, active listening).
 
 Assessments describe what understanding looks like in behavior or language.
+Units must be topologically sorted by conceptual dependency:
+- if Unit B depends on Unit A, Unit A must appear earlier
+- avoid introducing advanced applications before prerequisites
+- each unit should be understandable from prior units only

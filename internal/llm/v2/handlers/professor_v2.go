@@ -109,7 +109,7 @@ func ProfessorGenerateNotesV2Handler(w http.ResponseWriter, r *http.Request) {
 		ComponentContext:      req.Context.ComponentContext,
 	}
 
-	basePrompt, err := prompt.GetPrompt("generateNotesPrompt")
+	basePrompt, err := prompt.GetPrompt("professorNotesPrompt")
 	if err != nil {
 		log.Printf("[ProfessorV2] Failed to load prompt: %v", err)
 		utils.WriteJSONError(w, "Failed to load prompt", http.StatusInternalServerError)

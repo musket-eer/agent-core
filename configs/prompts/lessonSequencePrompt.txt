@@ -19,6 +19,12 @@ Do **not** use the Examiner role nor the Librarian role.
 Each activity must:
 
 * Incrementally build toward achieving the `lesson_objective`
+* Represent a concept node in a lesson knowledge graph
+* Be ordered as a **topological sort**:
+  - prerequisite concepts must appear earlier
+  - no activity may depend on a concept introduced later
+  - progression must move from foundational concepts to dependent concepts
+* Ensure each activity can be understood using only prior activities as prerequisites
 * Follow this structure:
   1–2: Comprehension – Introduce and contextualize the concept
   3–4: Decomposition – Break down structure, mechanisms, or rules

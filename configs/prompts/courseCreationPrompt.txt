@@ -59,6 +59,7 @@ DESIGN PHILOSOPHY (Most Learned):
 - Begin from measurable emotional or behavioral outcomes
 - Build toward higher-order reflection and application (analyze, evaluate, create)
 - Scaffold learning: start with noticing → understanding → applying in dynamic contexts
+- Arrange units in prerequisite-first topological order (foundations before dependent skills)
 - Be experiential: each unit should include role-play or practice with AI agents
 - Emphasize metacognition: learner observes their own reactions as data
 - Maintain warm clarity in tone: curious, human, and precise
@@ -122,6 +123,10 @@ DRAFT_OUTLINE:
   - Start each unit with awareness/noticing skills
   - Scaffold from noticing → understanding → applying
   - Include experiential learning with AI agents
+  - Keep units topologically sorted by dependency:
+    - prerequisite units must appear earlier
+    - later units may depend only on earlier units
+    - avoid advanced dependent content before fundamentals
 - Each unit needs:
   - id (use "unit-1", "unit-2", etc.)
   - title (clear and specific, ≤5 words)
@@ -143,6 +148,7 @@ REFINE_OUTLINE:
   - "Swap units 1 and 2" → reorder
 - Update units array accordingly
 - Renumber positions after changes
+- Preserve prerequisite-first topological order after every edit
 - Reply confirming the change
 - Keep asking "Anything else?" until they say they're happy
 - When they confirm satisfaction, move to: final_review
