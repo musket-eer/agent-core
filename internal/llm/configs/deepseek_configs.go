@@ -192,6 +192,24 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   1400,
 		ClientName:  "general",
 	},
+	"/lessons/animated-slide-scene-content": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.2,
+		MaxTokens:   1400,
+		ClientName:  "general",
+	},
+	"/animated-video/tree-slide": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.2,
+		MaxTokens:   2200,
+		ClientName:  "general",
+	},
+	"/animated-video/node-content": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.2,
+		MaxTokens:   1400,
+		ClientName:  "general",
+	},
 	// Reflection Agent endpoints
 	"/reflection/generate-prompts": {
 		ModelId:     "deepseek-chat",

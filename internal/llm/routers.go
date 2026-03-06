@@ -80,6 +80,9 @@ func RegisterHandlers() http.Handler {
 	mux.HandleFunc("/courses/chat", logRequest("/courses/chat", CourseChatHandler))
 	mux.HandleFunc("/lessons/animated-knowledge-graph", logRequest("/lessons/animated-knowledge-graph", GenerateAnimatedKnowledgeGraphHandler))
 	mux.HandleFunc("/lessons/animated-slide-content", logRequest("/lessons/animated-slide-content", GenerateAnimatedSlideContentHandler))
+	mux.HandleFunc("/lessons/animated-slide-scene-content", logRequest("/lessons/animated-slide-scene-content", GenerateAnimatedSlideSceneContentHandler))
+	mux.HandleFunc("/animated-video/tree-slide", logRequest("/animated-video/tree-slide", GenerateAnimatedTreeSlideHandler))
+	mux.HandleFunc("/animated-video/node-content", logRequest("/animated-video/node-content", GenerateAnimatedNodeContentHandler))
 
 	// Reflection Agent endpoints
 	mux.HandleFunc("/reflection/generate-prompts", logRequest("/reflection/generate-prompts", ReflectionGeneratePromptsHandler))

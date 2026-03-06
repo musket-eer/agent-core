@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,11 +28,20 @@ import (
 const (
 	animatedKnowledgeGraphEndpoint = "/lessons/animated-knowledge-graph"
 	animatedSlideContentEndpoint   = "/lessons/animated-slide-content"
+	animatedSlideSceneEndpoint     = "/lessons/animated-slide-scene-content"
+	animatedTreeSlideEndpoint      = "/animated-video/tree-slide"
+	animatedNodeContentEndpoint    = "/animated-video/node-content"
 	animatedMaxRequestBytes        = 1 << 20 // 1MB
 	animatedDefaultRateLimit       = 30
 	animatedDefaultRateWindow      = time.Minute
 	animatedMaxConcurrentSlides    = 16
 )
+
+type slideValidationPolicy struct {
+	RequireScene         bool
+	RequireTimeline      bool
+	RequireAnimationPlan bool
+}
 
 var knowledgeNodeIDPattern = regexp.MustCompile(`^[a-z0-9_\-]{2,64}$`)
 
@@ -64,8 +74,24 @@ Rules:
    IMAGE_DRAW -> imageUrl
    NONE -> no modality field
 9) If using sketchPath, keep geometry simple and non-overlapping.
-10) No markdown, no commentary, no extra keys.
-11) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.`
+10) If presentationMode is scene, include scene with layout, animationPlan, and timeline.
+11) Optional scene metadata is allowed only as declarative JSON under scene.
+12) scene.animationPlan must contain 1-5 simple steps from allowed effects only.
+13) Do not emit scripts, event handlers, draw calls, or imperative renderer commands.
+14) No markdown, no commentary, no extra keys.
+15) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.`
+
+const defaultAnimatedTreeSlideSystemPrompt = `You generate scene-first animated lesson skeleton trees.
+Return only JSON matching the required schema.
+Rules:
+1) Return skeleton tree only under treeSlides.
+2) Allowed node keys only: id, title, type, physics, timeline, children.
+3) Do not include content, layout, or animationPlan in tree nodes.
+4) Each node must include physics and timeline.
+5) children must be an array of valid node objects.
+6) Use ids matching ^[a-z0-9_\-]{2,64}$.
+7) Keep output deterministic, concise, and strict JSON only.
+8) No markdown, no commentary, no extra keys.`
 
 var allowedDemoPlanKinds = map[string]struct{}{
 	"NONE":            {},
@@ -81,6 +107,35 @@ var allowedDemoPlanEmphasis = map[string]struct{}{
 	"step_trace":       {},
 	"settle_motion":    {},
 	"reveal":           {},
+}
+
+var allowedSceneLayoutModes = map[string]struct{}{
+	"full_text":            {},
+	"equation_centered":    {},
+	"split":                {},
+	"grid":                 {},
+	"stacked_progressive":  {},
+	"overlay_layered":      {},
+	"canvas_based_dynamic": {},
+}
+
+var allowedSceneAnimationEffects = map[string]struct{}{
+	"fade-in":          {},
+	"typewriter":       {},
+	"draw":             {},
+	"progressive_draw": {},
+	"stagger_in":       {},
+	"highlight":        {},
+	"morph":            {},
+	"zoom":             {},
+}
+
+var allowedScenePhysicsModes = map[string]struct{}{
+	"none":           {},
+	"force_graph":    {},
+	"spring_expand":  {},
+	"gravity_reveal": {},
+	"elastic_drop":   {},
 }
 
 type animatedAPIError struct {
@@ -183,8 +238,85 @@ func GenerateAnimatedKnowledgeGraphHandler(w http.ResponseWriter, r *http.Reques
 	writeAnimatedJSON(w, http.StatusOK, resp)
 }
 
+// GenerateAnimatedTreeSlideHandler handles POST /animated-video/tree-slide.
+func GenerateAnimatedTreeSlideHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAnimatedError(w, http.StatusMethodNotAllowed, "INVALID_REQUEST", "method not allowed")
+		return
+	}
+
+	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+	if requestID == "" {
+		requestID = uuid.NewString()
+	}
+
+	clientIP := clientIPFromRequest(r)
+	if !animatedEndpointLimiter.allow(clientIP) {
+		writeAnimatedError(w, http.StatusTooManyRequests, "RATE_LIMITED", "rate limit exceeded")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, animatedMaxRequestBytes)
+
+	var req AnimatedLessonRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&req); err != nil {
+		writeAnimatedError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
+		return
+	}
+
+	if err := validateAnimatedTreeSlideRequest(&req); err != nil {
+		writeAnimatedError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	cachePayload, _ := json.Marshal(req)
+	cacheKey := animatedTreeSlideEndpoint + ":" + string(cachePayload)
+	if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+		var cachedResp AnimatedTreeSlideResponse
+		if err := json.Unmarshal(cached, &cachedResp); err == nil {
+			writeAnimatedJSON(w, http.StatusOK, cachedResp)
+			return
+		}
+	}
+
+	start := time.Now()
+	resp, modelName, validationStatus, err := generateAnimatedTreeSlide(context.Background(), req)
+	latency := time.Since(start).Milliseconds()
+	log.Printf("[GenerateAnimatedTreeSlide] request_id=%s topic=%q model=%s latency_ms=%d token_usage=%s validation=%s",
+		requestID, req.Topic, modelName, latency, "unavailable", validationStatus)
+
+	if err != nil {
+		if strings.Contains(err.Error(), "LLM_INVALID_OUTPUT") {
+			writeAnimatedError(w, http.StatusBadGateway, "LLM_INVALID_OUTPUT", "failed to produce valid tree slide content")
+			return
+		}
+		writeAnimatedError(w, http.StatusBadGateway, "LLM_FAILURE", "failed to generate tree slide content")
+		return
+	}
+
+	if b, err := json.Marshal(resp); err == nil {
+		_ = cache.Get().CacheByPayload(cacheKey, b)
+	}
+	writeAnimatedJSON(w, http.StatusOK, resp)
+}
+
 // GenerateAnimatedSlideContentHandler handles POST /lessons/animated-slide-content.
 func GenerateAnimatedSlideContentHandler(w http.ResponseWriter, r *http.Request) {
+	handleAnimatedSlideContent(w, r, animatedSlideContentEndpoint, false)
+}
+
+// GenerateAnimatedSlideSceneContentHandler handles POST /lessons/animated-slide-scene-content.
+func GenerateAnimatedSlideSceneContentHandler(w http.ResponseWriter, r *http.Request) {
+	handleAnimatedSlideContent(w, r, animatedSlideSceneEndpoint, true)
+}
+
+// GenerateAnimatedNodeContentHandler handles POST /animated-video/node-content.
+func GenerateAnimatedNodeContentHandler(w http.ResponseWriter, r *http.Request) {
+	handleAnimatedSlideContent(w, r, animatedNodeContentEndpoint, true)
+}
+
+func handleAnimatedSlideContent(w http.ResponseWriter, r *http.Request, endpoint string, requireSceneEndpoint bool) {
 	if r.Method != http.MethodPost {
 		writeAnimatedError(w, http.StatusMethodNotAllowed, "INVALID_REQUEST", "method not allowed")
 		return
@@ -213,7 +345,6 @@ func GenerateAnimatedSlideContentHandler(w http.ResponseWriter, r *http.Request)
 
 	var req AnimatedSlideContentRequest
 	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
 		writeAnimatedError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
 		return
@@ -224,8 +355,10 @@ func GenerateAnimatedSlideContentHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	policy := resolveSlideValidationPolicy(req, requireSceneEndpoint)
+
 	cachePayload, _ := json.Marshal(req)
-	cacheKey := animatedSlideContentEndpoint + ":" + string(cachePayload)
+	cacheKey := endpoint + ":" + string(cachePayload)
 	if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
 		var cachedResp AnimatedSlideContentResponse
 		if err := json.Unmarshal(cached, &cachedResp); err == nil {
@@ -235,10 +368,10 @@ func GenerateAnimatedSlideContentHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	start := time.Now()
-	resp, modelName, validationStatus, err := generateAnimatedSlideContent(context.Background(), req)
+	resp, modelName, validationStatus, err := generateAnimatedSlideContent(context.Background(), req, endpoint, policy)
 	latency := time.Since(start).Milliseconds()
-	log.Printf("[GenerateAnimatedSlideContent] request_id=%s topic_id=%q model=%s latency_ms=%d token_usage=%s validation=%s",
-		requestID, req.CurrentTopic.ID, modelName, latency, "unavailable", validationStatus)
+	log.Printf("[GenerateAnimatedSlideContent] request_id=%s endpoint=%s topic_id=%q model=%s latency_ms=%d token_usage=%s validation=%s",
+		requestID, endpoint, req.CurrentTopic.ID, modelName, latency, "unavailable", validationStatus)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "LLM_INVALID_OUTPUT") {
@@ -322,8 +455,81 @@ func generateAnimatedKnowledgeGraph(ctx context.Context, req AnimatedLessonReque
 	return finalResp, cfg.ModelId, "pass_after_repair", nil
 }
 
-func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentRequest) (AnimatedSlideContentResponse, string, string, error) {
-	cfg, ok := configs.GetDeepseekConfig(animatedSlideContentEndpoint)
+func generateAnimatedTreeSlide(ctx context.Context, req AnimatedLessonRequest) (AnimatedTreeSlideResponse, string, string, error) {
+	cfg, ok := configs.GetDeepseekConfig(animatedTreeSlideEndpoint)
+	if !ok {
+		cfg, _ = configs.GetDeepseekConfig("/chat")
+	}
+
+	clientName := cfg.ClientName
+	if clientName == "" {
+		clientName = "general"
+	}
+
+	client, err := GetLLMClient(clientName)
+	if err != nil {
+		return AnimatedTreeSlideResponse{}, cfg.ModelId, "failed", err
+	}
+
+	seed := stableSeedFromRequest(req)
+	userPrompt := buildAnimatedTreeSlideUserPrompt(req)
+	systemPrompt := loadAnimatedTreeSlideSystemPrompt()
+
+	rawOutput, err := callLLMWithTimeout(ctx, client, animatedTreeSlideEndpoint, map[string]interface{}{
+		"model":       cfg.ModelId,
+		"temperature": 0.2,
+		"max_tokens":  2200,
+		"seed":        seed,
+		"response_format": map[string]interface{}{
+			"type": "json_object",
+		},
+		"input": map[string]string{
+			"prompt": systemPrompt + "\n\n" + userPrompt,
+		},
+	})
+	if err != nil {
+		return AnimatedTreeSlideResponse{}, cfg.ModelId, "failed", err
+	}
+
+	resp, errs, parseErr, sanitized := parseAndValidateAnimatedTreeSlideOutput(rawOutput)
+	if parseErr == nil && len(errs) == 0 {
+		if sanitized {
+			return resp, cfg.ModelId, "pass_sanitized", nil
+		}
+		return resp, cfg.ModelId, "pass", nil
+	}
+
+	repairPrompt := buildAnimatedTreeSlideRepairPrompt(req, rawOutput, errs, parseErr)
+	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, animatedTreeSlideEndpoint, map[string]interface{}{
+		"model":       cfg.ModelId,
+		"temperature": 0.2,
+		"max_tokens":  2200,
+		"seed":        seed + 1,
+		"response_format": map[string]interface{}{
+			"type": "json_object",
+		},
+		"input": map[string]string{
+			"prompt": systemPrompt + "\n\n" + repairPrompt,
+		},
+	})
+	if repairErr != nil {
+		return AnimatedTreeSlideResponse{}, cfg.ModelId, "failed", repairErr
+	}
+
+	finalResp, finalErrs, finalParseErr, finalSanitized := parseAndValidateAnimatedTreeSlideOutput(repairedOutput)
+	if finalParseErr != nil || len(finalErrs) > 0 {
+		log.Printf("[GenerateAnimatedTreeSlide] repair validation failed parse_error=%v errors=%v", finalParseErr, finalErrs)
+		return AnimatedTreeSlideResponse{}, cfg.ModelId, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
+	}
+
+	if finalSanitized {
+		return finalResp, cfg.ModelId, "pass_after_repair_sanitized", nil
+	}
+	return finalResp, cfg.ModelId, "pass_after_repair", nil
+}
+
+func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentRequest, endpoint string, policy slideValidationPolicy) (AnimatedSlideContentResponse, string, string, error) {
+	cfg, ok := configs.GetDeepseekConfig(endpoint)
 	if !ok {
 		cfg, _ = configs.GetDeepseekConfig("/chat")
 	}
@@ -342,7 +548,7 @@ func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentR
 	systemPrompt := loadAnimatedSlideSystemPrompt()
 	userPrompt := buildAnimatedSlideUserPrompt(req)
 
-	rawOutput, err := callLLMWithTimeout(ctx, client, animatedSlideContentEndpoint, map[string]interface{}{
+	rawOutput, err := callLLMWithTimeout(ctx, client, endpoint, map[string]interface{}{
 		"model":       cfg.ModelId,
 		"temperature": 0.2,
 		"max_tokens":  1400,
@@ -358,7 +564,7 @@ func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentR
 		return AnimatedSlideContentResponse{}, cfg.ModelId, "failed", err
 	}
 
-	resp, errs, parseErr, sanitized := parseAndValidateAnimatedSlideOutput(rawOutput, req.CurrentTopic.ID)
+	resp, errs, parseErr, sanitized := parseAndValidateAnimatedSlideOutput(rawOutput, req.CurrentTopic.ID, policy)
 	if parseErr == nil && len(errs) == 0 {
 		if sanitized {
 			return resp, cfg.ModelId, "pass_sanitized", nil
@@ -367,7 +573,7 @@ func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentR
 	}
 
 	repairPrompt := buildAnimatedSlideRepairPrompt(req, rawOutput, errs, parseErr)
-	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, animatedSlideContentEndpoint, map[string]interface{}{
+	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, endpoint, map[string]interface{}{
 		"model":       cfg.ModelId,
 		"temperature": 0.2,
 		"max_tokens":  1400,
@@ -383,7 +589,7 @@ func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentR
 		return AnimatedSlideContentResponse{}, cfg.ModelId, "failed", repairErr
 	}
 
-	finalResp, finalErrs, finalParseErr, finalSanitized := parseAndValidateAnimatedSlideOutput(repairedOutput, req.CurrentTopic.ID)
+	finalResp, finalErrs, finalParseErr, finalSanitized := parseAndValidateAnimatedSlideOutput(repairedOutput, req.CurrentTopic.ID, policy)
 	if finalParseErr != nil || len(finalErrs) > 0 {
 		log.Printf("[GenerateAnimatedSlideContent] repair validation failed parse_error=%v errors=%v", finalParseErr, finalErrs)
 		return AnimatedSlideContentResponse{}, cfg.ModelId, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
@@ -411,6 +617,14 @@ func loadAnimatedSlideSystemPrompt() string {
 	return systemPrompt
 }
 
+func loadAnimatedTreeSlideSystemPrompt() string {
+	systemPrompt, err := prompt.GetPrompt("animatedTreeSlidePrompt")
+	if err != nil || strings.TrimSpace(systemPrompt) == "" {
+		return defaultAnimatedTreeSlideSystemPrompt
+	}
+	return systemPrompt
+}
+
 func parseAndValidateAnimatedLLMOutput(raw string, includePrerequisiteEdges bool) (AnimatedLessonResponse, []string, error) {
 	var resp AnimatedLessonResponse
 	cleaned := utils.CleanJSONResponse(raw)
@@ -422,7 +636,20 @@ func parseAndValidateAnimatedLLMOutput(raw string, includePrerequisiteEdges bool
 	return resp, errs, nil
 }
 
-func parseAndValidateAnimatedSlideOutput(raw string, expectedTopicID string) (AnimatedSlideContentResponse, []string, error, bool) {
+func parseAndValidateAnimatedTreeSlideOutput(raw string) (AnimatedTreeSlideResponse, []string, error, bool) {
+	cleaned := utils.CleanJSONResponse(raw)
+	var decoded map[string]interface{}
+	decoder := json.NewDecoder(bytes.NewReader([]byte(cleaned)))
+	if err := decoder.Decode(&decoded); err != nil {
+		return AnimatedTreeSlideResponse{}, nil, err, false
+	}
+	resp, sanitized := sanitizeAnimatedTreeSlideWhitelist(decoded)
+	normalizeTreeSlides(&resp, &sanitized)
+	errs := validateAnimatedTreeSlideResponse(resp)
+	return resp, errs, nil, sanitized
+}
+
+func parseAndValidateAnimatedSlideOutput(raw string, expectedTopicID string, policy slideValidationPolicy) (AnimatedSlideContentResponse, []string, error, bool) {
 	cleaned := utils.CleanJSONResponse(raw)
 	var decoded map[string]interface{}
 	decoder := json.NewDecoder(bytes.NewReader([]byte(cleaned)))
@@ -433,7 +660,7 @@ func parseAndValidateAnimatedSlideOutput(raw string, expectedTopicID string) (An
 	normalizeAndBoundDetail(&resp, &sanitized)
 	normalizeDemoPlan(&resp, &sanitized)
 	resolveSingleModality(&resp, &sanitized)
-	errs := validateAnimatedSlideContentResponse(resp, expectedTopicID)
+	errs := validateAnimatedSlideContentResponse(resp, expectedTopicID, policy)
 	return resp, errs, nil, sanitized
 }
 
@@ -454,11 +681,33 @@ func validateAnimatedRequest(req *AnimatedLessonRequest) error {
 	return nil
 }
 
+func validateAnimatedTreeSlideRequest(req *AnimatedLessonRequest) error {
+	normalizeLessonSharedFields(&req.CourseTitle, &req.LessonObjective, &req.Learner, &req.Animation)
+	req.Topic = strings.TrimSpace(req.Topic)
+	req.PresentationMode = strings.TrimSpace(strings.ToLower(req.PresentationMode))
+
+	if req.Topic == "" {
+		return fmt.Errorf("topic is required")
+	}
+	if len(req.Topic) > 200 {
+		return fmt.Errorf("topic is too long (max 200)")
+	}
+	if req.PresentationMode != "" && req.PresentationMode != "scene" {
+		return fmt.Errorf("presentationMode must be scene when provided")
+	}
+	if err := validateLessonSharedFieldLengths(req.CourseTitle, req.LessonObjective, req.Learner, req.Animation); err != nil {
+		return err
+	}
+	return nil
+}
+
 func validateAnimatedSlideContentRequest(req *AnimatedSlideContentRequest) error {
 	normalizeLessonSharedFields(&req.CourseTitle, &req.LessonObjective, &req.Learner, &req.Animation)
 	req.LessonID = strings.TrimSpace(req.LessonID)
+	req.PresentationMode = strings.TrimSpace(strings.ToLower(req.PresentationMode))
 	req.CurrentTopic.ID = strings.TrimSpace(req.CurrentTopic.ID)
 	req.CurrentTopic.Title = strings.TrimSpace(req.CurrentTopic.Title)
+	req.CurrentTopic.Type = strings.TrimSpace(req.CurrentTopic.Type)
 	req.CurrentTopic.Summary = strings.TrimSpace(req.CurrentTopic.Summary)
 	if req.PreviousTopic != nil {
 		req.PreviousTopic.ID = strings.TrimSpace(req.PreviousTopic.ID)
@@ -483,6 +732,12 @@ func validateAnimatedSlideContentRequest(req *AnimatedSlideContentRequest) error
 	}
 	if len(req.CurrentTopic.Summary) > 400 {
 		return fmt.Errorf("currentTopic.summary is too long (max 400)")
+	}
+	if len(req.CurrentTopic.Type) > 40 {
+		return fmt.Errorf("currentTopic.type is too long (max 40)")
+	}
+	if req.PresentationMode != "" && req.PresentationMode != "scene" {
+		return fmt.Errorf("presentationMode must be scene when provided")
 	}
 	if len(req.CurrentTopic.KeyPoints) > 8 {
 		return fmt.Errorf("currentTopic.keyPoints is too long (max 8)")
@@ -512,6 +767,29 @@ func validateAnimatedSlideContentRequest(req *AnimatedSlideContentRequest) error
 	}
 
 	return nil
+}
+
+func resolveSlideValidationPolicy(req AnimatedSlideContentRequest, requireSceneEndpoint bool) slideValidationPolicy {
+	p := slideValidationPolicy{
+		RequireScene:         requireSceneEndpoint,
+		RequireTimeline:      requireSceneEndpoint,
+		RequireAnimationPlan: requireSceneEndpoint,
+	}
+
+	if req.PresentationMode == "scene" || req.ScenePolicy.RequireScene {
+		p.RequireScene = true
+	}
+	if req.ScenePolicy.RequireTimeline {
+		p.RequireTimeline = true
+	}
+	if req.ScenePolicy.RequireAnimationPlan {
+		p.RequireAnimationPlan = true
+	}
+	if p.RequireTimeline || p.RequireAnimationPlan {
+		p.RequireScene = true
+	}
+
+	return p
 }
 
 func normalizeLessonSharedFields(courseTitle *string, lessonObjective *string, learner *LearnerProfile, animation *AnimationPrefs) {
@@ -661,7 +939,72 @@ func validateAnimatedLessonResponse(resp AnimatedLessonResponse, includePrerequi
 	return errs
 }
 
-func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, expectedTopicID string) []string {
+func validateAnimatedTreeSlideResponse(resp AnimatedTreeSlideResponse) []string {
+	var errs []string
+	if strings.TrimSpace(resp.LessonID) == "" {
+		errs = append(errs, "lessonId is required")
+	}
+	if strings.TrimSpace(resp.Title) == "" {
+		errs = append(errs, "title is required")
+	}
+	if len(resp.TreeSlides) < 1 {
+		errs = append(errs, "treeSlides must contain at least 1 node")
+		return errs
+	}
+
+	seen := map[string]struct{}{}
+	var walk func(node TreeSlideNode, path string)
+	walk = func(node TreeSlideNode, path string) {
+		id := strings.TrimSpace(node.ID)
+		if id == "" {
+			errs = append(errs, path+".id is required")
+		} else {
+			if !knowledgeNodeIDPattern.MatchString(id) {
+				errs = append(errs, path+".id must match ^[a-z0-9_\\-]{2,64}$")
+			}
+			if _, ok := seen[id]; ok {
+				errs = append(errs, "duplicate tree node id: "+id)
+			}
+			seen[id] = struct{}{}
+		}
+
+		if strings.TrimSpace(node.Title) == "" {
+			errs = append(errs, path+".title is required")
+		}
+		if strings.TrimSpace(node.Type) == "" {
+			errs = append(errs, path+".type is required")
+		}
+
+		if node.Physics == nil {
+			errs = append(errs, path+".physics is required")
+		} else {
+			mode := strings.TrimSpace(strings.ToLower(node.Physics.Mode))
+			if _, ok := allowedScenePhysicsModes[mode]; !ok {
+				errs = append(errs, path+".physics.mode invalid")
+			}
+			if !node.Physics.Enabled && mode != "none" {
+				errs = append(errs, path+".physics.mode invalid for enabled=false")
+			}
+		}
+
+		if node.Timeline == nil {
+			errs = append(errs, path+".timeline is required")
+		} else if node.Timeline.MaxWaitSec < 1 || node.Timeline.MaxWaitSec > 30 {
+			errs = append(errs, fmt.Sprintf("%s.timeline.maxWaitSec out of bounds: %.2f", path, node.Timeline.MaxWaitSec))
+		}
+
+		for i, child := range node.Children {
+			walk(child, fmt.Sprintf("%s.children[%d]", path, i))
+		}
+	}
+
+	for i, node := range resp.TreeSlides {
+		walk(node, fmt.Sprintf("treeSlides[%d]", i))
+	}
+	return errs
+}
+
+func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, expectedTopicID string, policy slideValidationPolicy) []string {
 	var errs []string
 
 	resp.TopicID = strings.TrimSpace(resp.TopicID)
@@ -746,6 +1089,12 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 
 	if resp.SketchPath != nil {
 		errs = append(errs, validateSketchPath(resp.SketchPath)...)
+	}
+	if policy.RequireScene && resp.Scene == nil {
+		errs = append(errs, "scene is required")
+	}
+	if resp.Scene != nil {
+		errs = append(errs, validateScene(resp.Scene, resp.DemoPlan, policy)...)
 	}
 	errs = append(errs, validateDemoPlanConsistency(resp)...)
 
@@ -849,6 +1198,181 @@ func validateSketchPath(sketch *SketchPath) []string {
 	return errs
 }
 
+func validateScene(scene *SceneSpec, demoPlan *DemoPlan, policy slideValidationPolicy) []string {
+	var errs []string
+	if scene == nil {
+		return errs
+	}
+
+	if scene.Layout == nil || strings.TrimSpace(scene.Layout.Mode) == "" {
+		errs = append(errs, "scene.layout.mode is required")
+	} else if _, ok := allowedSceneLayoutModes[strings.TrimSpace(strings.ToLower(scene.Layout.Mode))]; !ok {
+		errs = append(errs, fmt.Sprintf("scene.layout.mode invalid: %q", scene.Layout.Mode))
+	}
+
+	if policy.RequireAnimationPlan && len(scene.AnimationPlan) < 1 {
+		errs = append(errs, "scene.animationPlan must contain 1-5 steps")
+	}
+	if len(scene.AnimationPlan) > 5 {
+		errs = append(errs, "scene.animationPlan must contain 1-5 steps")
+	}
+	seenSteps := map[int]struct{}{}
+	prev := -1
+	for i, step := range scene.AnimationPlan {
+		if step.Step <= 0 {
+			errs = append(errs, fmt.Sprintf("scene.animationPlan[%d].step must be positive", i))
+		}
+		if _, exists := seenSteps[step.Step]; exists {
+			errs = append(errs, fmt.Sprintf("scene.animationPlan.step duplicate: %d", step.Step))
+		}
+		seenSteps[step.Step] = struct{}{}
+		if step.Step < prev {
+			errs = append(errs, "scene.animationPlan must be sorted ascending by step")
+		}
+		prev = step.Step
+		if strings.TrimSpace(step.Target) == "" {
+			errs = append(errs, fmt.Sprintf("scene.animationPlan[%d].target is required", i))
+		}
+		if _, ok := allowedSceneAnimationEffects[strings.TrimSpace(strings.ToLower(step.Effect))]; !ok {
+			errs = append(errs, fmt.Sprintf("scene.animationPlan[%d].effect invalid: %q", i, step.Effect))
+		}
+		if step.DurationSec <= 0 || step.DurationSec > 20 {
+			errs = append(errs, fmt.Sprintf("scene.animationPlan[%d].durationSec must be in (0,20]", i))
+		}
+	}
+
+	if policy.RequireTimeline && scene.Timeline == nil {
+		errs = append(errs, "scene.timeline is required")
+	}
+	if scene.Timeline != nil {
+		if scene.Timeline.MaxWaitSec < 1 || scene.Timeline.MaxWaitSec > 30 {
+			errs = append(errs, fmt.Sprintf("scene.timeline.maxWaitSec out of bounds: %.2f", scene.Timeline.MaxWaitSec))
+		}
+	}
+
+	if scene.Physics != nil {
+		mode := strings.TrimSpace(strings.ToLower(scene.Physics.Mode))
+		if _, ok := allowedScenePhysicsModes[mode]; !ok {
+			errs = append(errs, fmt.Sprintf("scene.physics.mode invalid: %q", scene.Physics.Mode))
+		}
+		if !scene.Physics.Enabled && mode != "none" {
+			errs = append(errs, "scene.physics.mode invalid for enabled=false")
+		}
+	}
+
+	if demoPlan != nil {
+		layoutMode := ""
+		if scene.Layout != nil {
+			layoutMode = strings.TrimSpace(strings.ToLower(scene.Layout.Mode))
+		}
+		kind := strings.TrimSpace(demoPlan.Kind)
+		switch kind {
+		case "SKETCH_PATH", "PHYSICS_GRAPH":
+			if layoutMode != "" && layoutMode != "split" && layoutMode != "canvas_based_dynamic" {
+				errs = append(errs, "scene.layout.mode should be split or canvas_based_dynamic for SKETCH_PATH/PHYSICS_GRAPH")
+			}
+		case "EQUATION_REVEAL":
+			if layoutMode != "" && layoutMode != "equation_centered" && layoutMode != "split" {
+				errs = append(errs, "scene.layout.mode should be equation_centered or split for EQUATION_REVEAL")
+			}
+		case "NONE":
+			for i, step := range scene.AnimationPlan {
+				target := strings.ToLower(strings.TrimSpace(step.Target))
+				if strings.Contains(target, "demo") || strings.Contains(target, "right_demo") {
+					errs = append(errs, fmt.Sprintf("scene.animationPlan[%d].target demo-only element invalid for demoPlan.kind=NONE", i))
+				}
+			}
+		}
+	}
+
+	return errs
+}
+
+func sanitizeAnimatedTreeSlideWhitelist(raw map[string]interface{}) (AnimatedTreeSlideResponse, bool) {
+	out := AnimatedTreeSlideResponse{}
+	sanitized := false
+	allowedKeys := map[string]struct{}{
+		"lessonId":   {},
+		"title":      {},
+		"treeSlides": {},
+	}
+	for k := range raw {
+		if _, ok := allowedKeys[k]; !ok {
+			sanitized = true
+		}
+	}
+
+	out.LessonID = asString(raw["lessonId"])
+	out.Title = asString(raw["title"])
+	if rawSlides, ok := raw["treeSlides"].([]interface{}); ok {
+		out.TreeSlides = make([]TreeSlideNode, 0, len(rawSlides))
+		for _, item := range rawSlides {
+			node, ok := sanitizeTreeSlideNode(item, &sanitized)
+			if !ok {
+				continue
+			}
+			out.TreeSlides = append(out.TreeSlides, node)
+		}
+	}
+	return out, sanitized
+}
+
+func sanitizeTreeSlideNode(v interface{}, sanitized *bool) (TreeSlideNode, bool) {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		*sanitized = true
+		return TreeSlideNode{}, false
+	}
+	allowedKeys := map[string]struct{}{
+		"id":       {},
+		"title":    {},
+		"type":     {},
+		"physics":  {},
+		"timeline": {},
+		"children": {},
+	}
+	for k := range m {
+		if _, ok := allowedKeys[k]; !ok {
+			*sanitized = true
+		}
+	}
+
+	out := TreeSlideNode{
+		ID:    asString(m["id"]),
+		Title: asString(m["title"]),
+		Type:  asString(m["type"]),
+	}
+
+	if phy, ok := m["physics"].(map[string]interface{}); ok {
+		out.Physics = &ScenePhysics{
+			Enabled: asBool(phy["enabled"]),
+			Mode:    asString(phy["mode"]),
+			Params:  asAnyMap(phy["params"]),
+		}
+	}
+
+	if timeline, ok := m["timeline"].(map[string]interface{}); ok {
+		out.Timeline = &SceneTimeline{
+			WaitForAnimationPlan: asBool(timeline["waitForAnimationPlan"]),
+			RequireSignalDone:    asBool(timeline["requireSignalDone"]),
+			MaxWaitSec:           asFloat(timeline["maxWaitSec"]),
+		}
+	}
+
+	if rawChildren, ok := m["children"].([]interface{}); ok {
+		out.Children = make([]TreeSlideNode, 0, len(rawChildren))
+		for _, child := range rawChildren {
+			n, ok := sanitizeTreeSlideNode(child, sanitized)
+			if !ok {
+				continue
+			}
+			out.Children = append(out.Children, n)
+		}
+	}
+
+	return out, true
+}
+
 func sanitizeAnimatedSlideWhitelist(raw map[string]interface{}) (AnimatedSlideContentResponse, bool) {
 	out := AnimatedSlideContentResponse{}
 	sanitized := false
@@ -863,6 +1387,7 @@ func sanitizeAnimatedSlideWhitelist(raw map[string]interface{}) (AnimatedSlideCo
 		"imageUrl":           {},
 		"equations":          {},
 		"sketchPath":         {},
+		"scene":              {},
 	}
 	for k := range raw {
 		if _, ok := allowedKeys[k]; !ok {
@@ -880,6 +1405,7 @@ func sanitizeAnimatedSlideWhitelist(raw map[string]interface{}) (AnimatedSlideCo
 	out.ImageURL = asString(raw["imageUrl"])
 	out.Equations = asStringSlice(raw["equations"])
 	out.SketchPath = sanitizeSketchPath(raw["sketchPath"], &sanitized)
+	out.Scene = sanitizeScene(raw["scene"], &sanitized)
 	return out, sanitized
 }
 
@@ -968,6 +1494,133 @@ func sanitizeSketchPath(v interface{}, sanitized *bool) *SketchPath {
 	return sketch
 }
 
+func sanitizeScene(v interface{}, sanitized *bool) *SceneSpec {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	scene := &SceneSpec{}
+
+	if layoutRaw, ok := m["layout"].(map[string]interface{}); ok {
+		scene.Layout = &SceneLayout{
+			Mode:   asString(layoutRaw["mode"]),
+			Params: asAnyMap(layoutRaw["params"]),
+		}
+	}
+
+	if planRaw, ok := m["animationPlan"].([]interface{}); ok {
+		scene.AnimationPlan = make([]SceneAnimationStep, 0, len(planRaw))
+		for _, item := range planRaw {
+			stepMap, ok := item.(map[string]interface{})
+			if !ok {
+				*sanitized = true
+				continue
+			}
+			scene.AnimationPlan = append(scene.AnimationPlan, SceneAnimationStep{
+				Step:          asInt(stepMap["step"]),
+				Target:        asString(stepMap["target"]),
+				Effect:        asString(stepMap["effect"]),
+				DurationSec:   asFloat(stepMap["durationSec"]),
+				WaitForSignal: asBool(stepMap["waitForSignal"]),
+			})
+		}
+	}
+
+	if timelineRaw, ok := m["timeline"].(map[string]interface{}); ok {
+		scene.Timeline = &SceneTimeline{
+			WaitForAnimationPlan: asBool(timelineRaw["waitForAnimationPlan"]),
+			RequireSignalDone:    asBool(timelineRaw["requireSignalDone"]),
+			MaxWaitSec:           asFloat(timelineRaw["maxWaitSec"]),
+		}
+	}
+
+	if physicsRaw, ok := m["physics"].(map[string]interface{}); ok {
+		scene.Physics = &ScenePhysics{
+			Enabled: asBool(physicsRaw["enabled"]),
+			Mode:    asString(physicsRaw["mode"]),
+			Params:  asAnyMap(physicsRaw["params"]),
+		}
+	}
+
+	if layersRaw, ok := m["layers"].(map[string]interface{}); ok {
+		scene.Layers = &SceneLayers{
+			Background: getBoolOrDefault(layersRaw, "background", true),
+			Content:    getBoolOrDefault(layersRaw, "content", true),
+			Highlight:  getBoolOrDefault(layersRaw, "highlight", true),
+			Transition: getBoolOrDefault(layersRaw, "transition", true),
+			Debug:      getBoolOrDefault(layersRaw, "debug", false),
+		}
+	}
+
+	return scene
+}
+
+func normalizeTreeSlides(out *AnimatedTreeSlideResponse, sanitized *bool) {
+	out.LessonID = truncate(strings.TrimSpace(out.LessonID), 100, sanitized)
+	out.Title = truncate(strings.TrimSpace(out.Title), 200, sanitized)
+	for i := range out.TreeSlides {
+		normalizeTreeSlideNode(&out.TreeSlides[i], sanitized)
+	}
+}
+
+func normalizeTreeSlideNode(node *TreeSlideNode, sanitized *bool) {
+	node.ID = truncate(strings.TrimSpace(node.ID), 64, sanitized)
+	node.Title = truncate(strings.TrimSpace(node.Title), 140, sanitized)
+	node.Type = truncate(strings.TrimSpace(strings.ToLower(node.Type)), 40, sanitized)
+
+	if node.Physics == nil {
+		node.Physics = &ScenePhysics{
+			Enabled: false,
+			Mode:    "none",
+			Params:  map[string]interface{}{},
+		}
+		*sanitized = true
+	} else {
+		node.Physics.Mode = strings.TrimSpace(strings.ToLower(node.Physics.Mode))
+		if node.Physics.Params == nil {
+			node.Physics.Params = map[string]interface{}{}
+		}
+		if !node.Physics.Enabled && node.Physics.Mode != "none" {
+			node.Physics.Mode = "none"
+			*sanitized = true
+		}
+		if node.Physics.Enabled && node.Physics.Mode == "" {
+			node.Physics.Mode = "force_graph"
+			*sanitized = true
+		}
+	}
+
+	if node.Timeline == nil {
+		node.Timeline = &SceneTimeline{
+			WaitForAnimationPlan: true,
+			RequireSignalDone:    false,
+			MaxWaitSec:           10,
+		}
+		*sanitized = true
+	} else {
+		if node.Timeline.MaxWaitSec <= 0 {
+			node.Timeline.MaxWaitSec = 10
+			*sanitized = true
+		}
+		if node.Timeline.MaxWaitSec < 1 {
+			node.Timeline.MaxWaitSec = 1
+			*sanitized = true
+		}
+		if node.Timeline.MaxWaitSec > 30 {
+			node.Timeline.MaxWaitSec = 30
+			*sanitized = true
+		}
+	}
+
+	if node.Children == nil {
+		node.Children = []TreeSlideNode{}
+		*sanitized = true
+	}
+	for i := range node.Children {
+		normalizeTreeSlideNode(&node.Children[i], sanitized)
+	}
+}
+
 func normalizeAndBoundDetail(out *AnimatedSlideContentResponse, sanitized *bool) {
 	out.TopicID = strings.TrimSpace(out.TopicID)
 	out.Explanation = truncate(strings.TrimSpace(out.Explanation), 1200, sanitized)
@@ -1005,6 +1658,84 @@ func normalizeAndBoundDetail(out *AnimatedSlideContentResponse, sanitized *bool)
 			edge.To = truncate(strings.TrimSpace(edge.To), 64, sanitized)
 			edge.Label = truncate(strings.TrimSpace(edge.Label), 80, sanitized)
 		}
+	}
+
+	if out.Scene != nil {
+		normalizeScene(out.Scene, sanitized)
+	}
+}
+
+func normalizeScene(scene *SceneSpec, sanitized *bool) {
+	if scene == nil {
+		return
+	}
+	if scene.Layout != nil {
+		scene.Layout.Mode = strings.TrimSpace(strings.ToLower(scene.Layout.Mode))
+		if scene.Layout.Params == nil {
+			scene.Layout.Params = map[string]interface{}{}
+		}
+	}
+
+	if len(scene.AnimationPlan) > 5 {
+		scene.AnimationPlan = scene.AnimationPlan[:5]
+		*sanitized = true
+	}
+	for i := range scene.AnimationPlan {
+		scene.AnimationPlan[i].Target = truncate(strings.TrimSpace(scene.AnimationPlan[i].Target), 80, sanitized)
+		scene.AnimationPlan[i].Effect = strings.TrimSpace(strings.ToLower(scene.AnimationPlan[i].Effect))
+		if scene.AnimationPlan[i].DurationSec <= 0 {
+			scene.AnimationPlan[i].DurationSec = 0.5
+			*sanitized = true
+		}
+		if scene.AnimationPlan[i].DurationSec > 20 {
+			scene.AnimationPlan[i].DurationSec = 20
+			*sanitized = true
+		}
+	}
+	sort.Slice(scene.AnimationPlan, func(i, j int) bool {
+		return scene.AnimationPlan[i].Step < scene.AnimationPlan[j].Step
+	})
+
+	if scene.Timeline != nil {
+		if scene.Timeline.MaxWaitSec <= 0 {
+			scene.Timeline.MaxWaitSec = 10
+			*sanitized = true
+		}
+		if scene.Timeline.MaxWaitSec < 1 {
+			scene.Timeline.MaxWaitSec = 1
+			*sanitized = true
+		}
+		if scene.Timeline.MaxWaitSec > 30 {
+			scene.Timeline.MaxWaitSec = 30
+			*sanitized = true
+		}
+	}
+
+	if scene.Physics != nil {
+		scene.Physics.Mode = strings.TrimSpace(strings.ToLower(scene.Physics.Mode))
+		if scene.Physics.Params == nil {
+			scene.Physics.Params = map[string]interface{}{}
+		}
+		if !scene.Physics.Enabled {
+			if scene.Physics.Mode != "none" {
+				scene.Physics.Mode = "none"
+				*sanitized = true
+			}
+		} else if scene.Physics.Mode == "" {
+			scene.Physics.Mode = "force_graph"
+			*sanitized = true
+		}
+	}
+
+	if scene.Layers == nil {
+		scene.Layers = &SceneLayers{
+			Background: true,
+			Content:    true,
+			Highlight:  true,
+			Transition: true,
+			Debug:      false,
+		}
+		*sanitized = true
 	}
 }
 
@@ -1157,6 +1888,47 @@ func asFloat(v interface{}) float64 {
 	}
 }
 
+func asInt(v interface{}) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	case float32:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
+func asBool(v interface{}) bool {
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	return false
+}
+
+func asAnyMap(v interface{}) map[string]interface{} {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return m
+}
+
+func getBoolOrDefault(m map[string]interface{}, key string, fallback bool) bool {
+	v, exists := m[key]
+	if !exists {
+		return fallback
+	}
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	return fallback
+}
+
 func clamp01(v float64) float64 {
 	if v < 0 {
 		return 0
@@ -1231,11 +2003,86 @@ Important:
 	)
 }
 
+func buildAnimatedTreeSlideUserPrompt(req AnimatedLessonRequest) string {
+	return fmt.Sprintf(`Create a scene-first lesson skeleton tree.
+Topic: %s
+Course context: %s
+Objective: %s
+Learner profile:
+- Education: %s
+- Interests: %s
+- Goals: %s
+Animation:
+- Mode: %s
+- Require level-order: %t
+- Include prerequisite edges: %t
+- Presentation mode: %s
+- Scene policy: requireScene=%t requireTimeline=%t requireAnimationPlan=%t
+
+Return JSON:
+{
+  "lessonId": string,
+  "title": string,
+  "treeSlides": [
+    {
+      "id": string,
+      "title": string,
+      "type": string,
+      "physics": { "enabled": boolean, "mode": string, "params": object },
+      "timeline": { "waitForAnimationPlan": boolean, "requireSignalDone": boolean, "maxWaitSec": number },
+      "children": []
+    }
+  ]
+}
+
+Hard constraints:
+- Return skeleton only; no content/layout/animationPlan in tree nodes.
+- Children must be valid node objects with the same keys.
+- Use strict JSON only.`,
+		req.Topic,
+		req.CourseTitle,
+		req.LessonObjective,
+		req.Learner.EducationLevel,
+		req.Learner.Interests,
+		req.Learner.CareerGoals,
+		req.Animation.Mode,
+		req.Animation.RequireLevelOrder,
+		req.Animation.IncludePrerequisiteEdges,
+		req.PresentationMode,
+		req.ScenePolicy.RequireScene,
+		req.ScenePolicy.RequireTimeline,
+		req.ScenePolicy.RequireAnimationPlan,
+	)
+}
+
 func buildAnimatedRepairPrompt(req AnimatedLessonRequest, rawOutput string, validationErrors []string, parseErr error) string {
 	var sb strings.Builder
 	sb.WriteString("The previous output failed validation. Regenerate and return ONLY corrected JSON.\n")
 	sb.WriteString("Original task:\n")
 	sb.WriteString(buildAnimatedUserPrompt(req))
+	sb.WriteString("\n\nValidation issues:\n")
+
+	if parseErr != nil {
+		sb.WriteString("- JSON parse error: ")
+		sb.WriteString(parseErr.Error())
+		sb.WriteString("\n")
+	}
+	for _, e := range validationErrors {
+		sb.WriteString("- ")
+		sb.WriteString(e)
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\nPrevious output:\n")
+	sb.WriteString(utils.CleanJSONResponse(rawOutput))
+	return sb.String()
+}
+
+func buildAnimatedTreeSlideRepairPrompt(req AnimatedLessonRequest, rawOutput string, validationErrors []string, parseErr error) string {
+	var sb strings.Builder
+	sb.WriteString("The previous output failed validation. Regenerate and return ONLY corrected JSON.\n")
+	sb.WriteString("Original task:\n")
+	sb.WriteString(buildAnimatedTreeSlideUserPrompt(req))
 	sb.WriteString("\n\nValidation issues:\n")
 
 	if parseErr != nil {
@@ -1276,6 +2123,7 @@ Animation mode: %s
 Current topic:
 - id: %s
 - title: %s
+- type: %s
 - summary: %s
 - key points seed: %v
 - examples seed: %v
@@ -1285,6 +2133,7 @@ Next topic (for continuity): %s
 
 Hard constraints:
 - Return strict JSON only.
+- If presentationMode is scene, include a populated scene object.
 - Keep output frontend-interpretable (no custom node DSL, no canvas scripting).
 - Text and demo are separate child regions; do not describe overlay behavior.
 - Choose one primary demo modality for this topic:
@@ -1293,6 +2142,10 @@ Hard constraints:
   3) equations
 - If using sketchPath, keep geometry simple and non-overlapping.
 - Do not include keys outside the schema below.
+- Optional scene metadata is allowed only as declarative JSON under scene.
+- scene.animationPlan must contain 1-5 steps.
+- Use effects only from: fade-in, typewriter, draw, progressive_draw, stagger_in, highlight, morph, zoom.
+- Do not emit scripts, event handlers, or draw commands.
 - demoPlan.kind must be one of:
   - NONE
   - SKETCH_PATH
@@ -1305,6 +2158,12 @@ Hard constraints:
   - IMAGE_DRAW -> provide imageUrl
   - PHYSICS_GRAPH -> provide sketchPath
   - NONE -> provide no modality field
+
+Scene request context:
+- presentationMode: %s
+- scenePolicy.requireScene: %t
+- scenePolicy.requireTimeline: %t
+- scenePolicy.requireAnimationPlan: %t
 
 Return JSON:
 {
@@ -1326,6 +2185,13 @@ Return JSON:
     "nodes": [{ "id": string, "label": string, "xk": number, "yk": number }],
     "edges": [{ "from": string, "to": string, "label": string }],
     "draw": { "secPerEdge": number, "secPerNode": number, "showArrowheads": boolean }
+  },
+  "scene": {
+    "layout": { "mode": string, "params": object },
+    "animationPlan": [{ "step": number, "target": string, "effect": string, "durationSec": number, "waitForSignal": boolean }],
+    "timeline": { "waitForAnimationPlan": boolean, "requireSignalDone": boolean, "maxWaitSec": number },
+    "physics": { "enabled": boolean, "mode": string, "params": object },
+    "layers": { "background": boolean, "content": boolean, "highlight": boolean, "transition": boolean, "debug": boolean }
   }
 }
 
@@ -1340,11 +2206,16 @@ Important:
 		req.Animation.Mode,
 		req.CurrentTopic.ID,
 		req.CurrentTopic.Title,
+		req.CurrentTopic.Type,
 		req.CurrentTopic.Summary,
 		req.CurrentTopic.KeyPoints,
 		req.CurrentTopic.Examples,
 		previousTitle,
 		nextTitle,
+		req.PresentationMode,
+		req.ScenePolicy.RequireScene,
+		req.ScenePolicy.RequireTimeline,
+		req.ScenePolicy.RequireAnimationPlan,
 	)
 }
 
