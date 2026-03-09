@@ -3,6 +3,8 @@ package clients
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"agent-core/internal/llm/configs"
 	genai "google.golang.org/genai"
 )
@@ -14,19 +16,22 @@ type GeminiClient struct {
 }
 
 // NewGeminiClient constructs a GeminiClient using the official SDK
-func NewGeminiClient(apiKey, _ string) *GeminiClient {
+func NewGeminiClient(apiKey, _ string) (*GeminiClient, error) {
+	if strings.TrimSpace(apiKey) == "" {
+		return nil, fmt.Errorf("gemini api key is required")
+	}
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  apiKey,
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
-		panic(fmt.Sprintf("failed to create Gemini client: %v", err))
+		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
 	return &GeminiClient{
 		ApiKey: apiKey,
 		Client: client,
-	}
+	}, nil
 }
 
 // Call implements the LLMClient interface for Gemini using the SDK
@@ -49,8 +54,8 @@ func (c *GeminiClient) Call(endpoint string, params map[string]interface{}) (str
 	maxOutputTokens := int32(config.MaxTokens)
 
 	genaiConfig := &genai.GenerateContentConfig{
-		Temperature:     &temp,
-		MaxOutputTokens: maxOutputTokens,
+		Temperature:      &temp,
+		MaxOutputTokens:  maxOutputTokens,
 		ResponseMIMEType: "application/json",
 	}
 

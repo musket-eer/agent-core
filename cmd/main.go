@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"agent-core/internal/cache"
 	"agent-core/internal/llm"
@@ -35,33 +36,14 @@ func main() {
 	// ✅ Initialize global cache after clearing
 	cache.InitGlobal(upstashCache)
 
-	// Set up Deepseek clients
-	baseURL := os.Getenv("DEEPSEEK_GENERAL_URL")
-	generalKey := os.Getenv("DEEPSEEK_GENERAL_API_KEY")
-	chatKey := os.Getenv("DEEPSEEK_CHAT_API_KEY")
 	youtubeAPIKey := os.Getenv("YOUTUBE_API_KEY")
 	youtubeBaseURL := os.Getenv("YOUTUBE_URL")
 
 	videos.GlobalClient = videos.NewYouTubeClient(youtubeAPIKey, youtubeBaseURL)
 
-	log.Printf("🔐 UPSTASH REST TOKEN: %s", upstashRestToken)
-
-	// Create Deepseek clients
-	generalClient := clients.NewDeepseekClient(generalKey, baseURL)
-	chatClient := clients.NewDeepseekClient(chatKey, baseURL)
-
-	// Create Gemini clients
-	geminiApiKey := os.Getenv("GEMINI_API_KEY")
-	geminiBaseURL := os.Getenv("GEMINI_BASE_URL")
-	log.Printf("🔐 GEMINI API KEY: %s", geminiApiKey)
-	geminiGeneralClient := clients.NewGeminiClient(geminiApiKey, geminiBaseURL)
-	geminiChatClient := clients.NewGeminiClient(geminiApiKey, geminiBaseURL)
-
-	// Register all LLM clients globally
-	llm.RegisterLLMClient("general", generalClient)
-	llm.RegisterLLMClient("chat", chatClient)
-	llm.RegisterLLMClient("gemini-general", geminiGeneralClient)
-	llm.RegisterLLMClient("gemini-chat", geminiChatClient)
+	// Register all available LLM clients from environment.
+	activeLLMAliases := registerLLMClients()
+	configureLLMQueueWorkers(activeLLMAliases)
 
 	// ============================================================================
 	// Initialize V2 Feature Flags
@@ -101,4 +83,134 @@ func main() {
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		fmt.Printf("❌ Server failed: %v\n", err)
 	}
+}
+
+func registerLLMClients() []string {
+	registered := 0
+	aliases := make([]string, 0, 8)
+	register := func(alias string, client llm.LLMClient) {
+		llm.RegisterLLMClient(alias, client)
+		registered++
+		aliases = append(aliases, alias)
+		log.Printf("✅ Registered LLM client alias: %s", alias)
+	}
+
+	deepseekBaseURL := firstNonEmpty(
+		os.Getenv("DEEPSEEK_BASE_URL"),
+		os.Getenv("DEEPSEEK_GENERAL_URL"),
+	)
+	deepseekGeneralKey := os.Getenv("DEEPSEEK_GENERAL_API_KEY")
+	deepseekChatKey := os.Getenv("DEEPSEEK_CHAT_API_KEY")
+	deepseekChatURL := firstNonEmpty(os.Getenv("DEEPSEEK_CHAT_URL"), deepseekBaseURL)
+
+	// Backward-compatible aliases used by existing endpoint configs.
+	if strings.TrimSpace(deepseekGeneralKey) != "" && strings.TrimSpace(deepseekBaseURL) != "" {
+		client := clients.NewDeepseekClient(deepseekGeneralKey, deepseekBaseURL)
+		register("general", client)
+		register("deepseek-general", client)
+	}
+	if strings.TrimSpace(deepseekChatKey) != "" && strings.TrimSpace(deepseekChatURL) != "" {
+		client := clients.NewDeepseekClient(deepseekChatKey, deepseekChatURL)
+		register("chat", client)
+		register("deepseek-chat", client)
+	}
+
+	// Optional extra Deepseek/OpenAI-compatible aliases.
+	registerDeepseekAlias := func(alias, keyEnv, urlEnv string) {
+		key := os.Getenv(keyEnv)
+		url := firstNonEmpty(os.Getenv(urlEnv), deepseekBaseURL)
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(url) == "" {
+			return
+		}
+		register(alias, clients.NewDeepseekClient(key, url))
+	}
+	registerDeepseekAlias("deepseek-reasoner", "DEEPSEEK_REASONER_API_KEY", "DEEPSEEK_REASONER_URL")
+	registerDeepseekAlias("deepseek-fast", "DEEPSEEK_FAST_API_KEY", "DEEPSEEK_FAST_URL")
+	registerDeepseekAlias("openai-general", "OPENAI_API_KEY", "OPENAI_BASE_URL")
+	registerDeepseekAlias("openai-chat", "OPENAI_CHAT_API_KEY", "OPENAI_CHAT_BASE_URL")
+
+	// Gemini aliases.
+	registerGeminiAlias := func(alias, primaryKeyEnv string, fallbackKeyEnv string) {
+		key := os.Getenv(primaryKeyEnv)
+		if strings.TrimSpace(key) == "" && fallbackKeyEnv != "" {
+			key = os.Getenv(fallbackKeyEnv)
+		}
+		baseURL := os.Getenv("GEMINI_BASE_URL")
+		if strings.TrimSpace(key) == "" {
+			return
+		}
+		client, err := clients.NewGeminiClient(key, baseURL)
+		if err != nil {
+			log.Printf("⚠️ Skipping %s: %v", alias, err)
+			return
+		}
+		register(alias, client)
+	}
+	registerGeminiAlias("gemini-general", "GEMINI_GENERAL_API_KEY", "GEMINI_API_KEY")
+	registerGeminiAlias("gemini-chat", "GEMINI_CHAT_API_KEY", "GEMINI_API_KEY")
+
+	// Bedrock aliases.
+	awsRegion := firstNonEmpty(os.Getenv("AWS_REGION"), os.Getenv("AWS_DEFAULT_REGION"))
+	if strings.TrimSpace(awsRegion) != "" {
+		bedrockClient, err := clients.NewBedrockClient(awsRegion)
+		if err != nil {
+			log.Printf("⚠️ Skipping bedrock clients: %v", err)
+		} else {
+			register("bedrock-general", bedrockClient)
+			register("bedrock-chat", bedrockClient)
+		}
+	}
+
+	log.Printf("✅ LLM client registry ready: total aliases=%d", registered)
+	log.Printf("ℹ️ Available aliases: %v", llm.ListLLMClients())
+	return aliases
+}
+
+func configureLLMQueueWorkers(activeAliases []string) {
+	// Respect explicit override.
+	if strings.TrimSpace(os.Getenv("LLM_QUEUE_WORKERS")) != "" {
+		log.Printf("✅ LLM queue workers configured from env: %s", os.Getenv("LLM_QUEUE_WORKERS"))
+		return
+	}
+
+	// We treat these as distinct worker lanes by key/provider for your setup.
+	workerLanes := 0
+	if contains(activeAliases, "deepseek-general") || contains(activeAliases, "general") {
+		workerLanes++
+	}
+	if contains(activeAliases, "deepseek-chat") || contains(activeAliases, "chat") {
+		workerLanes++
+	}
+	if contains(activeAliases, "gemini-general") {
+		workerLanes++
+	}
+
+	if workerLanes < 1 {
+		workerLanes = 1
+	}
+	_ = os.Setenv("LLM_QUEUE_WORKERS", strconv.Itoa(workerLanes))
+	log.Printf("✅ LLM queue workers auto-configured: %d", workerLanes)
+	log.Printf("ℹ️ Worker lanes active: deepseek-general=%t deepseek-chat=%t gemini-general=%t",
+		contains(activeAliases, "deepseek-general") || contains(activeAliases, "general"),
+		contains(activeAliases, "deepseek-chat") || contains(activeAliases, "chat"),
+		contains(activeAliases, "gemini-general"),
+	)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func contains(values []string, needle string) bool {
+	for _, v := range values {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }

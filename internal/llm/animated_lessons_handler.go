@@ -33,6 +33,7 @@ const (
 	animatedNodeContentEndpoint    = "/animated-video/node-content"
 	animatedMaxRequestBytes        = 1 << 20 // 1MB
 	animatedDefaultRateLimit       = 30
+	animatedSceneRateLimit         = 300
 	animatedDefaultRateWindow      = time.Minute
 	animatedMaxConcurrentSlides    = 16
 )
@@ -150,6 +151,11 @@ type animatedRateLimiter struct {
 	burst    int
 }
 
+type animatedRequestQueue struct {
+	mu       sync.Mutex
+	inFlight map[string]chan struct{}
+}
+
 func newAnimatedRateLimiter(limit int, window time.Duration) *animatedRateLimiter {
 	rps := rate.Every(window / time.Duration(limit))
 	return &animatedRateLimiter{
@@ -171,8 +177,39 @@ func (rl *animatedRateLimiter) allow(key string) bool {
 	return limiter.Allow()
 }
 
+func newAnimatedRequestQueue() *animatedRequestQueue {
+	return &animatedRequestQueue{
+		inFlight: make(map[string]chan struct{}),
+	}
+}
+
+func (q *animatedRequestQueue) begin(key string) (waitCh chan struct{}, leader bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if ch, ok := q.inFlight[key]; ok {
+		return ch, false
+	}
+	ch := make(chan struct{})
+	q.inFlight[key] = ch
+	return ch, true
+}
+
+func (q *animatedRequestQueue) end(key string) {
+	q.mu.Lock()
+	ch, ok := q.inFlight[key]
+	if ok {
+		delete(q.inFlight, key)
+	}
+	q.mu.Unlock()
+	if ok {
+		close(ch)
+	}
+}
+
 var animatedEndpointLimiter = newAnimatedRateLimiter(animatedDefaultRateLimit, animatedDefaultRateWindow)
+var animatedSceneEndpointLimiter = newAnimatedRateLimiter(animatedSceneRateLimit, animatedDefaultRateWindow)
 var animatedSlideSemaphore = make(chan struct{}, animatedMaxConcurrentSlides)
+var animatedQueue = newAnimatedRequestQueue()
 
 // GenerateAnimatedKnowledgeGraphHandler handles POST /lessons/animated-knowledge-graph.
 func GenerateAnimatedKnowledgeGraphHandler(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +254,22 @@ func GenerateAnimatedKnowledgeGraphHandler(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	leader, releaseQueue := beginQueuedRequest(cacheKey)
+	if !leader {
+		if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+			var cachedResp AnimatedLessonResponse
+			if err := json.Unmarshal(cached, &cachedResp); err == nil {
+				writeAnimatedJSON(w, http.StatusOK, cachedResp)
+				return
+			}
+		}
+		leader, releaseQueue = beginQueuedRequest(cacheKey)
+		if !leader {
+			writeAnimatedError(w, http.StatusBadGateway, "LLM_FAILURE", "request queue synchronization failed")
+			return
+		}
+	}
+	defer releaseQueue()
 	start := time.Now()
 	resp, modelName, validationStatus, err := generateAnimatedKnowledgeGraph(context.Background(), req)
 	latency := time.Since(start).Milliseconds()
@@ -280,6 +333,22 @@ func GenerateAnimatedTreeSlideHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	leader, releaseQueue := beginQueuedRequest(cacheKey)
+	if !leader {
+		if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+			var cachedResp AnimatedTreeSlideResponse
+			if err := json.Unmarshal(cached, &cachedResp); err == nil {
+				writeAnimatedJSON(w, http.StatusOK, cachedResp)
+				return
+			}
+		}
+		leader, releaseQueue = beginQueuedRequest(cacheKey)
+		if !leader {
+			writeAnimatedError(w, http.StatusBadGateway, "LLM_FAILURE", "request queue synchronization failed")
+			return
+		}
+	}
+	defer releaseQueue()
 	start := time.Now()
 	resp, modelName, validationStatus, err := generateAnimatedTreeSlide(context.Background(), req)
 	latency := time.Since(start).Milliseconds()
@@ -328,7 +397,11 @@ func handleAnimatedSlideContent(w http.ResponseWriter, r *http.Request, endpoint
 	}
 
 	clientIP := clientIPFromRequest(r)
-	if !animatedEndpointLimiter.allow(clientIP) {
+	limiter := animatedEndpointLimiter
+	if endpoint == animatedNodeContentEndpoint || endpoint == animatedTreeSlideEndpoint {
+		limiter = animatedSceneEndpointLimiter
+	}
+	if !limiter.allow(clientIP) {
 		writeAnimatedError(w, http.StatusTooManyRequests, "RATE_LIMITED", "rate limit exceeded")
 		return
 	}
@@ -367,6 +440,22 @@ func handleAnimatedSlideContent(w http.ResponseWriter, r *http.Request, endpoint
 		}
 	}
 
+	leader, releaseQueue := beginQueuedRequest(cacheKey)
+	if !leader {
+		if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
+			var cachedResp AnimatedSlideContentResponse
+			if err := json.Unmarshal(cached, &cachedResp); err == nil {
+				writeAnimatedJSON(w, http.StatusOK, cachedResp)
+				return
+			}
+		}
+		leader, releaseQueue = beginQueuedRequest(cacheKey)
+		if !leader {
+			writeAnimatedError(w, http.StatusBadGateway, "LLM_FAILURE", "request queue synchronization failed")
+			return
+		}
+	}
+	defer releaseQueue()
 	start := time.Now()
 	resp, modelName, validationStatus, err := generateAnimatedSlideContent(context.Background(), req, endpoint, policy)
 	latency := time.Since(start).Milliseconds()
@@ -2243,23 +2332,25 @@ func buildAnimatedSlideRepairPrompt(req AnimatedSlideContentRequest, rawOutput s
 }
 
 func callLLMWithTimeout(ctx context.Context, client LLMClient, endpoint string, payload map[string]interface{}) (string, error) {
-	type result struct {
-		output string
-		err    error
-	}
+	q := getLLMCallQueue()
+	modelName := inferModelName(payload)
+	clientAlias := inferClientAlias(endpoint)
+	contentKind := inferContentKind(endpoint)
+	start := time.Now()
+	log.Printf("[LLMDispatch] endpoint=%s content=%s client=%s model=%s", endpoint, contentKind, clientAlias, modelName)
 
-	ch := make(chan result, 1)
-	go func() {
-		out, err := client.Call(endpoint, payload)
-		ch <- result{output: out, err: err}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	case res := <-ch:
-		return res.output, res.err
+	out, err := q.submit(ctx, func() (string, error) {
+		return client.Call(endpoint, payload)
+	})
+	latencyMs := time.Since(start).Milliseconds()
+	if err != nil {
+		log.Printf("[LLMResult] endpoint=%s content=%s client=%s model=%s latency_ms=%d status=error err=%v",
+			endpoint, contentKind, clientAlias, modelName, latencyMs, err)
+		return "", err
 	}
+	log.Printf("[LLMResult] endpoint=%s content=%s client=%s model=%s latency_ms=%d status=ok",
+		endpoint, contentKind, clientAlias, modelName, latencyMs)
+	return out, nil
 }
 
 func stableSeedFromRequest(req AnimatedLessonRequest) int {
@@ -2304,4 +2395,65 @@ func clientIPFromRequest(r *http.Request) string {
 		return host
 	}
 	return strings.TrimSpace(r.RemoteAddr)
+}
+
+func beginQueuedRequest(cacheKey string) (bool, func()) {
+	hash := cache.HashPayload(cacheKey)
+	waitCh, leader := animatedQueue.begin(hash)
+	if !leader {
+		<-waitCh
+		return false, nil
+	}
+	markQueueStatus(hash, "inflight")
+	return true, func() {
+		markQueueStatus(hash, "done")
+		animatedQueue.end(hash)
+	}
+}
+
+func markQueueStatus(hash string, status string) {
+	c := cache.Get()
+	if c == nil || c.Upstash == nil {
+		return
+	}
+	key := "queue:inflight:" + hash
+	_ = c.Upstash.StoreWithTTL(key, []byte(fmt.Sprintf(`{"status":"%s"}`, status)), 30)
+}
+
+func inferModelName(payload map[string]interface{}) string {
+	if payload == nil {
+		return "unknown"
+	}
+	if model, ok := payload["model"].(string); ok && strings.TrimSpace(model) != "" {
+		return model
+	}
+	return "unknown"
+}
+
+func inferClientAlias(endpoint string) string {
+	if cfg, ok := configs.GetDeepseekConfig(endpoint); ok && strings.TrimSpace(cfg.ClientName) != "" {
+		return cfg.ClientName
+	}
+	return "unknown"
+}
+
+func inferContentKind(endpoint string) string {
+	switch endpoint {
+	case animatedKnowledgeGraphEndpoint, animatedTreeSlideEndpoint:
+		return "skeleton_generation"
+	case animatedSlideContentEndpoint, animatedSlideSceneEndpoint, animatedNodeContentEndpoint:
+		return "node_content_generation"
+	case "/generate-course-graph":
+		return "course_graph_generation"
+	case "/generate-lesson-index-plan":
+		return "lesson_index_generation"
+	case "/generate-exam":
+		return "exam_generation"
+	case "/submit-session":
+		return "grading"
+	case "/reflection/generate-task-reflection":
+		return "task_reflection_generation"
+	default:
+		return "generic_generation"
+	}
 }
