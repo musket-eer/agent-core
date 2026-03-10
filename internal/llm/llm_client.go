@@ -16,6 +16,12 @@ type LLMClient interface {
 	Call(endpoint string, params map[string]interface{}) (string, error)
 }
 
+type routedLLMClient struct {
+	route string
+	pool  []string
+	start int
+}
+
 // global client registry
 var llmClients = make(map[string]LLMClient)
 var llmClientsMu sync.RWMutex
@@ -34,8 +40,8 @@ func GetLLMClient(name string) (LLMClient, error) {
 	// Virtual routed aliases: these are dynamically load-balanced across
 	// all registered provider-specific aliases by role.
 	if name == "general" || name == "chat" {
-		if routedClient, routedAlias, pool := getRoutedClient(name); routedClient != nil {
-			log.Printf("[LLMRouter] route=%s selected=%s pool=%v", name, routedAlias, pool)
+		if routedClient, selectedAlias, pool := getRoutedClient(name); routedClient != nil {
+			log.Printf("[LLMRouter] route=%s selected=%s pool=%v", name, selectedAlias, pool)
 			return routedClient, nil
 		}
 	}
@@ -78,11 +84,13 @@ func getRoutedClient(route string) (LLMClient, string, []string) {
 		return nil, "", pool
 	}
 	idx := nextRouteIndex(route, len(available))
-	selectedAlias := available[idx]
-	selectedClient := llmClients[selectedAlias]
 	llmClientsMu.RUnlock()
 
-	return selectedClient, selectedAlias, available
+	return &routedLLMClient{
+		route: route,
+		pool:  available,
+		start: idx,
+	}, available[idx], available
 }
 
 func nextRouteIndex(route string, n int) int {
@@ -152,6 +160,57 @@ func dedupeStrings(in []string) []string {
 		out = append(out, v)
 	}
 	return out
+}
+
+func (c *routedLLMClient) Call(endpoint string, params map[string]interface{}) (string, error) {
+	if len(c.pool) == 0 {
+		return "", fmt.Errorf("no providers available for route: %s", c.route)
+	}
+
+	var errs []string
+	for attempt := 0; attempt < len(c.pool); attempt++ {
+		alias := c.pool[(c.start+attempt)%len(c.pool)]
+
+		llmClientsMu.RLock()
+		client, ok := llmClients[alias]
+		llmClientsMu.RUnlock()
+		if !ok || client == nil {
+			errs = append(errs, fmt.Sprintf("%s:not_registered", alias))
+			continue
+		}
+
+		resp, err := client.Call(endpoint, params)
+		if err == nil {
+			if attempt > 0 {
+				log.Printf("[LLMRouter] route=%s recovered_with=%s attempt=%d", c.route, alias, attempt+1)
+			}
+			return resp, nil
+		}
+
+		errs = append(errs, fmt.Sprintf("%s:%v", alias, err))
+		if !isRetryableProviderError(err) {
+			return "", err
+		}
+
+		if attempt < len(c.pool)-1 {
+			log.Printf("[LLMRouter] route=%s failover from=%s reason=retryable_provider_error next=%s",
+				c.route, alias, c.pool[(c.start+attempt+1)%len(c.pool)])
+		}
+	}
+
+	return "", fmt.Errorf("all providers failed for route=%s: %s", c.route, strings.Join(errs, " | "))
+}
+
+func isRetryableProviderError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "429") ||
+		strings.Contains(s, "rate limit") ||
+		strings.Contains(s, "quota exceeded") ||
+		strings.Contains(s, "resource_exhausted") ||
+		strings.Contains(s, "too many requests")
 }
 
 // Call routes to the appropriate client based on the endpoint

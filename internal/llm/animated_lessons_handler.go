@@ -1,17 +1,20 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -67,7 +70,7 @@ Rules:
 3) Use previous and next topic only for smooth transitions.
 4) Keep output frontend-interpretable only.
 5) Text and demonstration are separate child regions; never describe overlay/stacking between them.
-6) Choose exactly one primary demo modality for this topic: imageUrl OR sketchPath OR equations.
+6) Choose exactly one primary demo modality for this topic: imageUrl OR sketchPath OR equations OR pedagogicalDiagram.
 7) demoPlan.kind must be one of: NONE, SKETCH_PATH, EQUATION_REVEAL, IMAGE_DRAW, PHYSICS_GRAPH.
 8) demoPlan.kind must agree with modality fields:
    SKETCH_PATH or PHYSICS_GRAPH -> sketchPath
@@ -79,8 +82,15 @@ Rules:
 11) Optional scene metadata is allowed only as declarative JSON under scene.
 12) scene.animationPlan must contain 1-5 simple steps from allowed effects only.
 13) Do not emit scripts, event handlers, draw calls, or imperative renderer commands.
-14) No markdown, no commentary, no extra keys.
-15) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.`
+14) For pedagogicalDiagram, set kind=PEDAGOGICAL_DIAGRAM and payload.variant in {shapes, character_scene, table, chart, graph, chat}.
+15) If pedagogicalDiagram.payload.variant=shapes, each shapes[].kind must be one of: rect, oval, triangle, diamond.
+16) No markdown, no commentary, no extra keys.
+17) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.`
+
+const defaultAnimatedSlideTextFallbackSystemPrompt = `Return plain text only using the exact template fields requested.
+Do not return JSON.
+Do not include markdown fences.
+Do not include extra headings or commentary.`
 
 const defaultAnimatedTreeSlideSystemPrompt = `You generate scene-first animated lesson skeleton trees.
 Return only JSON matching the required schema.
@@ -95,11 +105,12 @@ Rules:
 8) No markdown, no commentary, no extra keys.`
 
 var allowedDemoPlanKinds = map[string]struct{}{
-	"NONE":            {},
-	"SKETCH_PATH":     {},
-	"EQUATION_REVEAL": {},
-	"IMAGE_DRAW":      {},
-	"PHYSICS_GRAPH":   {},
+	"NONE":                {},
+	"SKETCH_PATH":         {},
+	"EQUATION_REVEAL":     {},
+	"IMAGE_DRAW":          {},
+	"PHYSICS_GRAPH":       {},
+	"PEDAGOGICAL_DIAGRAM": {},
 }
 
 var allowedDemoPlanEmphasis = map[string]struct{}{
@@ -137,6 +148,42 @@ var allowedScenePhysicsModes = map[string]struct{}{
 	"spring_expand":  {},
 	"gravity_reveal": {},
 	"elastic_drop":   {},
+}
+
+var allowedPedagogicalVariants = map[string]struct{}{
+	"shapes":          {},
+	"character_scene": {},
+	"table":           {},
+	"chart":           {},
+	"graph":           {},
+	"chat":            {},
+}
+
+var allowedShapeKinds = map[string]struct{}{
+	"rect":     {},
+	"oval":     {},
+	"triangle": {},
+	"diamond":  {},
+}
+
+var shapeKindAliases = map[string]string{
+	"rectangle": "rect",
+	"box":       "rect",
+	"square":    "rect",
+	"circle":    "oval",
+	"ellipse":   "oval",
+	"rhombus":   "diamond",
+}
+
+var allowedCharacterPoses = map[string]struct{}{
+	"idle":  {},
+	"wave":  {},
+	"point": {},
+}
+
+var allowedChartTypes = map[string]struct{}{
+	"bar":  {},
+	"line": {},
 }
 
 type animatedAPIError struct {
@@ -254,19 +301,19 @@ func GenerateAnimatedKnowledgeGraphHandler(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	leader, releaseQueue := beginQueuedRequest(cacheKey)
-	if !leader {
+	var releaseQueue func()
+	for {
+		leader, release := beginQueuedRequest(cacheKey)
+		if leader {
+			releaseQueue = release
+			break
+		}
 		if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
 			var cachedResp AnimatedLessonResponse
 			if err := json.Unmarshal(cached, &cachedResp); err == nil {
 				writeAnimatedJSON(w, http.StatusOK, cachedResp)
 				return
 			}
-		}
-		leader, releaseQueue = beginQueuedRequest(cacheKey)
-		if !leader {
-			writeAnimatedError(w, http.StatusBadGateway, "LLM_FAILURE", "request queue synchronization failed")
-			return
 		}
 	}
 	defer releaseQueue()
@@ -297,6 +344,10 @@ func GenerateAnimatedTreeSlideHandler(w http.ResponseWriter, r *http.Request) {
 		writeAnimatedError(w, http.StatusMethodNotAllowed, "INVALID_REQUEST", "method not allowed")
 		return
 	}
+	if !hasJSONContentType(r) {
+		writeAnimatedError(w, http.StatusBadRequest, "INVALID_REQUEST", "content-type must be application/json")
+		return
+	}
 
 	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 	if requestID == "" {
@@ -314,11 +365,13 @@ func GenerateAnimatedTreeSlideHandler(w http.ResponseWriter, r *http.Request) {
 	var req AnimatedLessonRequest
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&req); err != nil {
+		log.Printf("[GenerateAnimatedTreeSlide] invalid_json err=%v", err)
 		writeAnimatedError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
 		return
 	}
 
 	if err := validateAnimatedTreeSlideRequest(&req); err != nil {
+		log.Printf("[GenerateAnimatedTreeSlide] invalid_request err=%v", err)
 		writeAnimatedError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
@@ -333,19 +386,19 @@ func GenerateAnimatedTreeSlideHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	leader, releaseQueue := beginQueuedRequest(cacheKey)
-	if !leader {
+	var releaseQueue func()
+	for {
+		leader, release := beginQueuedRequest(cacheKey)
+		if leader {
+			releaseQueue = release
+			break
+		}
 		if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
 			var cachedResp AnimatedTreeSlideResponse
 			if err := json.Unmarshal(cached, &cachedResp); err == nil {
 				writeAnimatedJSON(w, http.StatusOK, cachedResp)
 				return
 			}
-		}
-		leader, releaseQueue = beginQueuedRequest(cacheKey)
-		if !leader {
-			writeAnimatedError(w, http.StatusBadGateway, "LLM_FAILURE", "request queue synchronization failed")
-			return
 		}
 	}
 	defer releaseQueue()
@@ -390,6 +443,10 @@ func handleAnimatedSlideContent(w http.ResponseWriter, r *http.Request, endpoint
 		writeAnimatedError(w, http.StatusMethodNotAllowed, "INVALID_REQUEST", "method not allowed")
 		return
 	}
+	if !hasJSONContentType(r) {
+		writeAnimatedError(w, http.StatusBadRequest, "INVALID_REQUEST", "content-type must be application/json")
+		return
+	}
 
 	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 	if requestID == "" {
@@ -419,11 +476,13 @@ func handleAnimatedSlideContent(w http.ResponseWriter, r *http.Request, endpoint
 	var req AnimatedSlideContentRequest
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&req); err != nil {
+		log.Printf("[GenerateAnimatedSlideContent] invalid_json endpoint=%s err=%v", endpoint, err)
 		writeAnimatedError(w, http.StatusBadRequest, "INVALID_JSON", "invalid request body")
 		return
 	}
 
 	if err := validateAnimatedSlideContentRequest(&req); err != nil {
+		log.Printf("[GenerateAnimatedSlideContent] invalid_request endpoint=%s err=%v", endpoint, err)
 		writeAnimatedError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
@@ -440,19 +499,19 @@ func handleAnimatedSlideContent(w http.ResponseWriter, r *http.Request, endpoint
 		}
 	}
 
-	leader, releaseQueue := beginQueuedRequest(cacheKey)
-	if !leader {
+	var releaseQueue func()
+	for {
+		leader, release := beginQueuedRequest(cacheKey)
+		if leader {
+			releaseQueue = release
+			break
+		}
 		if cached, found, _ := cache.Get().CheckByPayload(cacheKey); found {
 			var cachedResp AnimatedSlideContentResponse
 			if err := json.Unmarshal(cached, &cachedResp); err == nil {
 				writeAnimatedJSON(w, http.StatusOK, cachedResp)
 				return
 			}
-		}
-		leader, releaseQueue = beginQueuedRequest(cacheKey)
-		if !leader {
-			writeAnimatedError(w, http.StatusBadGateway, "LLM_FAILURE", "request queue synchronization failed")
-			return
 		}
 	}
 	defer releaseQueue()
@@ -487,18 +546,22 @@ func generateAnimatedKnowledgeGraph(ctx context.Context, req AnimatedLessonReque
 	if clientName == "" {
 		clientName = "general"
 	}
+	forceModel := shouldForceModelOverride(clientName)
+	modelForLogs := cfg.ModelId
+	if !forceModel {
+		modelForLogs = "provider_default(" + clientName + ")"
+	}
 
 	client, err := GetLLMClient(clientName)
 	if err != nil {
-		return AnimatedLessonResponse{}, cfg.ModelId, "failed", err
+		return AnimatedLessonResponse{}, modelForLogs, "failed", err
 	}
 
 	seed := stableSeedFromRequest(req)
 	userPrompt := buildAnimatedUserPrompt(req)
 	systemPrompt := loadAnimatedSystemPrompt()
 
-	rawOutput, err := callLLMWithTimeout(ctx, client, animatedKnowledgeGraphEndpoint, map[string]interface{}{
-		"model":       cfg.ModelId,
+	payload := map[string]interface{}{
 		"temperature": 0.2,
 		"max_tokens":  2200,
 		"seed":        seed,
@@ -508,19 +571,22 @@ func generateAnimatedKnowledgeGraph(ctx context.Context, req AnimatedLessonReque
 		"input": map[string]string{
 			"prompt": systemPrompt + "\n\n" + userPrompt,
 		},
-	})
+	}
+	if forceModel {
+		payload["model"] = cfg.ModelId
+	}
+	rawOutput, err := callLLMWithTimeout(ctx, client, animatedKnowledgeGraphEndpoint, payload)
 	if err != nil {
-		return AnimatedLessonResponse{}, cfg.ModelId, "failed", err
+		return AnimatedLessonResponse{}, modelForLogs, "failed", err
 	}
 
 	resp, errs, parseErr := parseAndValidateAnimatedLLMOutput(rawOutput, req.Animation.IncludePrerequisiteEdges)
 	if parseErr == nil && len(errs) == 0 {
-		return resp, cfg.ModelId, "pass", nil
+		return resp, modelForLogs, "pass", nil
 	}
 
 	repairPrompt := buildAnimatedRepairPrompt(req, rawOutput, errs, parseErr)
-	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, animatedKnowledgeGraphEndpoint, map[string]interface{}{
-		"model":       cfg.ModelId,
+	repairPayload := map[string]interface{}{
 		"temperature": 0.2,
 		"max_tokens":  2200,
 		"seed":        seed + 1,
@@ -530,18 +596,22 @@ func generateAnimatedKnowledgeGraph(ctx context.Context, req AnimatedLessonReque
 		"input": map[string]string{
 			"prompt": systemPrompt + "\n\n" + repairPrompt,
 		},
-	})
+	}
+	if forceModel {
+		repairPayload["model"] = cfg.ModelId
+	}
+	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, animatedKnowledgeGraphEndpoint, repairPayload)
 	if repairErr != nil {
-		return AnimatedLessonResponse{}, cfg.ModelId, "failed", repairErr
+		return AnimatedLessonResponse{}, modelForLogs, "failed", repairErr
 	}
 
 	finalResp, finalErrs, finalParseErr := parseAndValidateAnimatedLLMOutput(repairedOutput, req.Animation.IncludePrerequisiteEdges)
 	if finalParseErr != nil || len(finalErrs) > 0 {
 		log.Printf("[GenerateAnimatedKnowledgeGraph] repair validation failed parse_error=%v errors=%v", finalParseErr, finalErrs)
-		return AnimatedLessonResponse{}, cfg.ModelId, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
+		return AnimatedLessonResponse{}, modelForLogs, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
 	}
 
-	return finalResp, cfg.ModelId, "pass_after_repair", nil
+	return finalResp, modelForLogs, "pass_after_repair", nil
 }
 
 func generateAnimatedTreeSlide(ctx context.Context, req AnimatedLessonRequest) (AnimatedTreeSlideResponse, string, string, error) {
@@ -554,18 +624,22 @@ func generateAnimatedTreeSlide(ctx context.Context, req AnimatedLessonRequest) (
 	if clientName == "" {
 		clientName = "general"
 	}
+	forceModel := shouldForceModelOverride(clientName)
+	modelForLogs := cfg.ModelId
+	if !forceModel {
+		modelForLogs = "provider_default(" + clientName + ")"
+	}
 
 	client, err := GetLLMClient(clientName)
 	if err != nil {
-		return AnimatedTreeSlideResponse{}, cfg.ModelId, "failed", err
+		return AnimatedTreeSlideResponse{}, modelForLogs, "failed", err
 	}
 
 	seed := stableSeedFromRequest(req)
 	userPrompt := buildAnimatedTreeSlideUserPrompt(req)
 	systemPrompt := loadAnimatedTreeSlideSystemPrompt()
 
-	rawOutput, err := callLLMWithTimeout(ctx, client, animatedTreeSlideEndpoint, map[string]interface{}{
-		"model":       cfg.ModelId,
+	payload := map[string]interface{}{
 		"temperature": 0.2,
 		"max_tokens":  2200,
 		"seed":        seed,
@@ -575,22 +649,25 @@ func generateAnimatedTreeSlide(ctx context.Context, req AnimatedLessonRequest) (
 		"input": map[string]string{
 			"prompt": systemPrompt + "\n\n" + userPrompt,
 		},
-	})
+	}
+	if forceModel {
+		payload["model"] = cfg.ModelId
+	}
+	rawOutput, err := callLLMWithTimeout(ctx, client, animatedTreeSlideEndpoint, payload)
 	if err != nil {
-		return AnimatedTreeSlideResponse{}, cfg.ModelId, "failed", err
+		return AnimatedTreeSlideResponse{}, modelForLogs, "failed", err
 	}
 
 	resp, errs, parseErr, sanitized := parseAndValidateAnimatedTreeSlideOutput(rawOutput)
 	if parseErr == nil && len(errs) == 0 {
 		if sanitized {
-			return resp, cfg.ModelId, "pass_sanitized", nil
+			return resp, modelForLogs, "pass_sanitized", nil
 		}
-		return resp, cfg.ModelId, "pass", nil
+		return resp, modelForLogs, "pass", nil
 	}
 
 	repairPrompt := buildAnimatedTreeSlideRepairPrompt(req, rawOutput, errs, parseErr)
-	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, animatedTreeSlideEndpoint, map[string]interface{}{
-		"model":       cfg.ModelId,
+	repairPayload := map[string]interface{}{
 		"temperature": 0.2,
 		"max_tokens":  2200,
 		"seed":        seed + 1,
@@ -600,21 +677,25 @@ func generateAnimatedTreeSlide(ctx context.Context, req AnimatedLessonRequest) (
 		"input": map[string]string{
 			"prompt": systemPrompt + "\n\n" + repairPrompt,
 		},
-	})
+	}
+	if forceModel {
+		repairPayload["model"] = cfg.ModelId
+	}
+	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, animatedTreeSlideEndpoint, repairPayload)
 	if repairErr != nil {
-		return AnimatedTreeSlideResponse{}, cfg.ModelId, "failed", repairErr
+		return AnimatedTreeSlideResponse{}, modelForLogs, "failed", repairErr
 	}
 
 	finalResp, finalErrs, finalParseErr, finalSanitized := parseAndValidateAnimatedTreeSlideOutput(repairedOutput)
 	if finalParseErr != nil || len(finalErrs) > 0 {
 		log.Printf("[GenerateAnimatedTreeSlide] repair validation failed parse_error=%v errors=%v", finalParseErr, finalErrs)
-		return AnimatedTreeSlideResponse{}, cfg.ModelId, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
+		return AnimatedTreeSlideResponse{}, modelForLogs, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
 	}
 
 	if finalSanitized {
-		return finalResp, cfg.ModelId, "pass_after_repair_sanitized", nil
+		return finalResp, modelForLogs, "pass_after_repair_sanitized", nil
 	}
-	return finalResp, cfg.ModelId, "pass_after_repair", nil
+	return finalResp, modelForLogs, "pass_after_repair", nil
 }
 
 func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentRequest, endpoint string, policy slideValidationPolicy) (AnimatedSlideContentResponse, string, string, error) {
@@ -627,18 +708,22 @@ func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentR
 	if clientName == "" {
 		clientName = "general"
 	}
+	forceModel := shouldForceModelOverride(clientName)
+	modelForLogs := cfg.ModelId
+	if !forceModel {
+		modelForLogs = "provider_default(" + clientName + ")"
+	}
 
 	client, err := GetLLMClient(clientName)
 	if err != nil {
-		return AnimatedSlideContentResponse{}, cfg.ModelId, "failed", err
+		return AnimatedSlideContentResponse{}, modelForLogs, "failed", err
 	}
 
 	seed := stableSeedFromSlideRequest(req)
 	systemPrompt := loadAnimatedSlideSystemPrompt()
 	userPrompt := buildAnimatedSlideUserPrompt(req)
 
-	rawOutput, err := callLLMWithTimeout(ctx, client, endpoint, map[string]interface{}{
-		"model":       cfg.ModelId,
+	payload := map[string]interface{}{
 		"temperature": 0.2,
 		"max_tokens":  1400,
 		"seed":        seed,
@@ -648,22 +733,25 @@ func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentR
 		"input": map[string]string{
 			"prompt": systemPrompt + "\n\n" + userPrompt,
 		},
-	})
+	}
+	if forceModel {
+		payload["model"] = cfg.ModelId
+	}
+	rawOutput, err := callLLMWithTimeout(ctx, client, endpoint, payload)
 	if err != nil {
-		return AnimatedSlideContentResponse{}, cfg.ModelId, "failed", err
+		return AnimatedSlideContentResponse{}, modelForLogs, "failed", err
 	}
 
 	resp, errs, parseErr, sanitized := parseAndValidateAnimatedSlideOutput(rawOutput, req.CurrentTopic.ID, policy)
 	if parseErr == nil && len(errs) == 0 {
 		if sanitized {
-			return resp, cfg.ModelId, "pass_sanitized", nil
+			return resp, modelForLogs, "pass_sanitized", nil
 		}
-		return resp, cfg.ModelId, "pass", nil
+		return resp, modelForLogs, "pass", nil
 	}
 
 	repairPrompt := buildAnimatedSlideRepairPrompt(req, rawOutput, errs, parseErr)
-	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, endpoint, map[string]interface{}{
-		"model":       cfg.ModelId,
+	repairPayload := map[string]interface{}{
 		"temperature": 0.2,
 		"max_tokens":  1400,
 		"seed":        seed + 1,
@@ -673,21 +761,51 @@ func generateAnimatedSlideContent(ctx context.Context, req AnimatedSlideContentR
 		"input": map[string]string{
 			"prompt": systemPrompt + "\n\n" + repairPrompt,
 		},
-	})
+	}
+	if forceModel {
+		repairPayload["model"] = cfg.ModelId
+	}
+	repairedOutput, repairErr := callLLMWithTimeout(ctx, client, endpoint, repairPayload)
 	if repairErr != nil {
-		return AnimatedSlideContentResponse{}, cfg.ModelId, "failed", repairErr
+		return AnimatedSlideContentResponse{}, modelForLogs, "failed", repairErr
 	}
 
 	finalResp, finalErrs, finalParseErr, finalSanitized := parseAndValidateAnimatedSlideOutput(repairedOutput, req.CurrentTopic.ID, policy)
 	if finalParseErr != nil || len(finalErrs) > 0 {
 		log.Printf("[GenerateAnimatedSlideContent] repair validation failed parse_error=%v errors=%v", finalParseErr, finalErrs)
-		return AnimatedSlideContentResponse{}, cfg.ModelId, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
+		// Fallback only for the strict scene node-content endpoint:
+		// ask for rigid plain text and parse server-side into JSON.
+		if endpoint == animatedNodeContentEndpoint {
+			fallbackPrompt := buildAnimatedSlideTextFallbackPrompt(req)
+			fallbackPayload := map[string]interface{}{
+				"temperature": 0.2,
+				"max_tokens":  1200,
+				"seed":        seed + 2,
+				"input": map[string]string{
+					"prompt": defaultAnimatedSlideTextFallbackSystemPrompt + "\n\n" + fallbackPrompt,
+				},
+			}
+			if forceModel {
+				fallbackPayload["model"] = cfg.ModelId
+			}
+			fallbackRaw, fallbackErr := callLLMWithTimeout(ctx, client, endpoint, fallbackPayload)
+			if fallbackErr == nil {
+				fallbackResp, fbErrs := parseAnimatedSlideTextFallbackOutput(fallbackRaw, req, policy)
+				if len(fbErrs) == 0 {
+					return fallbackResp, modelForLogs, "pass_text_fallback", nil
+				}
+				log.Printf("[GenerateAnimatedSlideContent] text fallback validation failed errors=%v", fbErrs)
+			} else {
+				log.Printf("[GenerateAnimatedSlideContent] text fallback call failed err=%v", fallbackErr)
+			}
+		}
+		return AnimatedSlideContentResponse{}, modelForLogs, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
 	}
 
 	if finalSanitized {
-		return finalResp, cfg.ModelId, "pass_after_repair_sanitized", nil
+		return finalResp, modelForLogs, "pass_after_repair_sanitized", nil
 	}
-	return finalResp, cfg.ModelId, "pass_after_repair", nil
+	return finalResp, modelForLogs, "pass_after_repair", nil
 }
 
 func loadAnimatedSystemPrompt() string {
@@ -751,6 +869,153 @@ func parseAndValidateAnimatedSlideOutput(raw string, expectedTopicID string, pol
 	resolveSingleModality(&resp, &sanitized)
 	errs := validateAnimatedSlideContentResponse(resp, expectedTopicID, policy)
 	return resp, errs, nil, sanitized
+}
+
+func parseAnimatedSlideTextFallbackOutput(raw string, req AnimatedSlideContentRequest, policy slideValidationPolicy) (AnimatedSlideContentResponse, []string) {
+	resp := AnimatedSlideContentResponse{
+		TopicID:            req.CurrentTopic.ID,
+		Explanation:        req.CurrentTopic.Summary,
+		KeyPoints:          append([]string{}, req.CurrentTopic.KeyPoints...),
+		Examples:           append([]string{}, req.CurrentTopic.Examples...),
+		BridgeFromPrevious: "",
+		BridgeToNext:       "",
+		DemoPlan:           &DemoPlan{Kind: "NONE"},
+	}
+
+	if len(resp.KeyPoints) == 0 {
+		resp.KeyPoints = []string{"Understand the core idea of this topic."}
+	}
+
+	section := ""
+	scanner := bufio.NewScanner(strings.NewReader(raw))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "TOPIC_ID:"):
+			resp.TopicID = strings.TrimSpace(strings.TrimPrefix(line, "TOPIC_ID:"))
+			section = ""
+		case strings.HasPrefix(line, "EXPLANATION:"):
+			resp.Explanation = strings.TrimSpace(strings.TrimPrefix(line, "EXPLANATION:"))
+			section = ""
+		case strings.HasPrefix(line, "BRIDGE_FROM_PREVIOUS:"):
+			resp.BridgeFromPrevious = strings.TrimSpace(strings.TrimPrefix(line, "BRIDGE_FROM_PREVIOUS:"))
+			section = ""
+		case strings.HasPrefix(line, "BRIDGE_TO_NEXT:"):
+			resp.BridgeToNext = strings.TrimSpace(strings.TrimPrefix(line, "BRIDGE_TO_NEXT:"))
+			section = ""
+		case strings.HasPrefix(line, "DEMO_KIND:"):
+			kind := strings.TrimSpace(strings.TrimPrefix(line, "DEMO_KIND:"))
+			resp.DemoPlan = &DemoPlan{Kind: strings.ToUpper(kind)}
+			section = ""
+		case strings.HasPrefix(line, "IMAGE_URL:"):
+			resp.ImageURL = strings.TrimSpace(strings.TrimPrefix(line, "IMAGE_URL:"))
+			section = ""
+		case strings.HasPrefix(line, "KEY_POINTS:"):
+			resp.KeyPoints = nil
+			section = "key_points"
+		case strings.HasPrefix(line, "EXAMPLES:"):
+			resp.Examples = nil
+			section = "examples"
+		case strings.HasPrefix(line, "EQUATIONS:"):
+			resp.Equations = nil
+			section = "equations"
+		case strings.HasPrefix(line, "SCENE_LAYOUT_MODE:"):
+			mode := strings.TrimSpace(strings.TrimPrefix(line, "SCENE_LAYOUT_MODE:"))
+			if resp.Scene == nil {
+				resp.Scene = &SceneSpec{}
+			}
+			if resp.Scene.Layout == nil {
+				resp.Scene.Layout = &SceneLayout{}
+			}
+			resp.Scene.Layout.Mode = mode
+			section = ""
+		case strings.HasPrefix(line, "SCENE_TIMELINE_MAX_WAIT_SEC:"):
+			val := strings.TrimSpace(strings.TrimPrefix(line, "SCENE_TIMELINE_MAX_WAIT_SEC:"))
+			f, _ := strconv.ParseFloat(val, 64)
+			if resp.Scene == nil {
+				resp.Scene = &SceneSpec{}
+			}
+			if resp.Scene.Timeline == nil {
+				resp.Scene.Timeline = &SceneTimeline{}
+			}
+			resp.Scene.Timeline.MaxWaitSec = f
+			resp.Scene.Timeline.WaitForAnimationPlan = true
+		case strings.HasPrefix(line, "SCENE_ANIMATION_PLAN:"):
+			if resp.Scene == nil {
+				resp.Scene = &SceneSpec{}
+			}
+			resp.Scene.AnimationPlan = nil
+			section = "scene_plan"
+		case strings.HasPrefix(line, "- "):
+			item := strings.TrimSpace(strings.TrimPrefix(line, "- "))
+			switch section {
+			case "key_points":
+				resp.KeyPoints = append(resp.KeyPoints, item)
+			case "examples":
+				resp.Examples = append(resp.Examples, item)
+			case "equations":
+				resp.Equations = append(resp.Equations, item)
+			case "scene_plan":
+				step := parseScenePlanStep(item)
+				if step.Step > 0 {
+					resp.Scene.AnimationPlan = append(resp.Scene.AnimationPlan, step)
+				}
+			}
+		}
+	}
+
+	if policy.RequireScene || req.PresentationMode == "scene" || req.ScenePolicy.RequireScene {
+		if resp.Scene == nil {
+			resp.Scene = &SceneSpec{}
+		}
+		if resp.Scene.Layout == nil {
+			resp.Scene.Layout = &SceneLayout{Mode: "split"}
+		}
+		if resp.Scene.Timeline == nil {
+			resp.Scene.Timeline = &SceneTimeline{WaitForAnimationPlan: true, RequireSignalDone: false, MaxWaitSec: 10}
+		}
+		if (policy.RequireAnimationPlan || req.ScenePolicy.RequireAnimationPlan) && len(resp.Scene.AnimationPlan) == 0 {
+			resp.Scene.AnimationPlan = []SceneAnimationStep{
+				{Step: 1, Target: "title", Effect: "fade-in", DurationSec: 0.3},
+			}
+		}
+	}
+
+	sanitized := false
+	normalizeAndBoundDetail(&resp, &sanitized)
+	normalizeDemoPlan(&resp, &sanitized)
+	resolveSingleModality(&resp, &sanitized)
+	errs := validateAnimatedSlideContentResponse(resp, req.CurrentTopic.ID, policy)
+	return resp, errs
+}
+
+func parseScenePlanStep(item string) SceneAnimationStep {
+	step := SceneAnimationStep{}
+	parts := strings.Split(item, "|")
+	for _, p := range parts {
+		kv := strings.SplitN(strings.TrimSpace(p), "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		k := strings.TrimSpace(strings.ToLower(kv[0]))
+		v := strings.TrimSpace(kv[1])
+		switch k {
+		case "step":
+			i, _ := strconv.Atoi(v)
+			step.Step = i
+		case "target":
+			step.Target = v
+		case "effect":
+			step.Effect = v
+		case "durationsec":
+			f, _ := strconv.ParseFloat(v, 64)
+			step.DurationSec = f
+		}
+	}
+	return step
 }
 
 func validateAnimatedRequest(req *AnimatedLessonRequest) error {
@@ -1163,7 +1428,7 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 	if resp.DemoPlan != nil {
 		kind := strings.TrimSpace(resp.DemoPlan.Kind)
 		if _, ok := allowedDemoPlanKinds[kind]; !ok {
-			errs = append(errs, "demoPlan.kind must be one of NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH")
+			errs = append(errs, "demoPlan.kind must be one of NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH|PEDAGOGICAL_DIAGRAM")
 		}
 		if len(strings.TrimSpace(resp.DemoPlan.Reason)) > 240 {
 			errs = append(errs, "demoPlan.reason is too long (max 240)")
@@ -1178,6 +1443,9 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 
 	if resp.SketchPath != nil {
 		errs = append(errs, validateSketchPath(resp.SketchPath)...)
+	}
+	if resp.PedagogicalDiagram != nil {
+		errs = append(errs, validatePedagogicalDiagram(resp.PedagogicalDiagram)...)
 	}
 	if policy.RequireScene && resp.Scene == nil {
 		errs = append(errs, "scene is required")
@@ -1194,6 +1462,115 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 	return errs
 }
 
+func validatePedagogicalDiagram(d *PedagogicalDiagramNode) []string {
+	var errs []string
+	if d == nil {
+		return errs
+	}
+	if strings.TrimSpace(d.Kind) != "PEDAGOGICAL_DIAGRAM" {
+		errs = append(errs, "pedagogicalDiagram.kind must equal PEDAGOGICAL_DIAGRAM")
+	}
+	if strings.TrimSpace(d.ID) == "" {
+		errs = append(errs, "pedagogicalDiagram.id is required")
+	}
+	variant := strings.TrimSpace(strings.ToLower(d.Payload.Variant))
+	if _, ok := allowedPedagogicalVariants[variant]; !ok {
+		errs = append(errs, "pedagogicalDiagram.payload.variant invalid")
+		return errs
+	}
+
+	switch variant {
+	case "shapes":
+		if len(d.Payload.Shapes) < 1 || len(d.Payload.Shapes) > 32 {
+			errs = append(errs, "pedagogicalDiagram.payload.shapes must contain 1-32 items")
+		}
+		for i, s := range d.Payload.Shapes {
+			if _, ok := allowedShapeKinds[s.Kind]; !ok {
+				errs = append(errs, fmt.Sprintf("pedagogicalDiagram.payload.shapes[%d].kind invalid", i))
+			}
+		}
+	case "character_scene":
+		if len(d.Payload.Characters) < 1 || len(d.Payload.Characters) > 8 {
+			errs = append(errs, "pedagogicalDiagram.payload.characters must contain 1-8 items")
+		}
+		for i, c := range d.Payload.Characters {
+			if strings.TrimSpace(c.Name) == "" {
+				errs = append(errs, fmt.Sprintf("pedagogicalDiagram.payload.characters[%d].name is required", i))
+			}
+			if _, ok := allowedCharacterPoses[c.Pose]; !ok && c.Pose != "" {
+				errs = append(errs, fmt.Sprintf("pedagogicalDiagram.payload.characters[%d].pose invalid", i))
+			}
+		}
+	case "table":
+		if d.Payload.Table == nil {
+			errs = append(errs, "pedagogicalDiagram.payload.table is required for variant table")
+		} else {
+			if len(d.Payload.Table.Headers) < 1 || len(d.Payload.Table.Headers) > 8 {
+				errs = append(errs, "pedagogicalDiagram.payload.table.headers must contain 1-8 items")
+			}
+			if len(d.Payload.Table.Rows) < 1 || len(d.Payload.Table.Rows) > 10 {
+				errs = append(errs, "pedagogicalDiagram.payload.table.rows must contain 1-10 items")
+			}
+		}
+	case "chart":
+		if d.Payload.Chart == nil {
+			errs = append(errs, "pedagogicalDiagram.payload.chart is required for variant chart")
+		} else {
+			if _, ok := allowedChartTypes[d.Payload.Chart.Type]; !ok {
+				errs = append(errs, "pedagogicalDiagram.payload.chart.type invalid")
+			}
+			if len(d.Payload.Chart.Labels) < 1 || len(d.Payload.Chart.Labels) > 10 {
+				errs = append(errs, "pedagogicalDiagram.payload.chart.labels must contain 1-10 items")
+			}
+			if len(d.Payload.Chart.Series) < 1 || len(d.Payload.Chart.Series) > 4 {
+				errs = append(errs, "pedagogicalDiagram.payload.chart.series must contain 1-4 items")
+			}
+		}
+	case "graph":
+		if d.Payload.Graph == nil {
+			errs = append(errs, "pedagogicalDiagram.payload.graph is required for variant graph")
+		} else {
+			if len(d.Payload.Graph.Nodes) < 1 || len(d.Payload.Graph.Nodes) > 20 {
+				errs = append(errs, "pedagogicalDiagram.payload.graph.nodes must contain 1-20 items")
+			}
+			if len(d.Payload.Graph.Edges) > 30 {
+				errs = append(errs, "pedagogicalDiagram.payload.graph.edges must contain 0-30 items")
+			}
+			nodeIDs := make(map[string]struct{}, len(d.Payload.Graph.Nodes))
+			for i, n := range d.Payload.Graph.Nodes {
+				if strings.TrimSpace(n.ID) == "" {
+					errs = append(errs, fmt.Sprintf("pedagogicalDiagram.payload.graph.nodes[%d].id is required", i))
+				}
+				nodeIDs[n.ID] = struct{}{}
+			}
+			for i, e := range d.Payload.Graph.Edges {
+				if _, ok := nodeIDs[e.From]; !ok {
+					errs = append(errs, fmt.Sprintf("pedagogicalDiagram.payload.graph.edges[%d].from unknown node", i))
+				}
+				if _, ok := nodeIDs[e.To]; !ok {
+					errs = append(errs, fmt.Sprintf("pedagogicalDiagram.payload.graph.edges[%d].to unknown node", i))
+				}
+			}
+		}
+	case "chat":
+		if d.Payload.Chat == nil {
+			errs = append(errs, "pedagogicalDiagram.payload.chat is required for variant chat")
+		} else {
+			if len(d.Payload.Chat.Participants) < 1 || len(d.Payload.Chat.Participants) > 6 {
+				errs = append(errs, "pedagogicalDiagram.payload.chat.participants must contain 1-6 items")
+			}
+			if len(d.Payload.Chat.Messages) < 1 || len(d.Payload.Chat.Messages) > 12 {
+				errs = append(errs, "pedagogicalDiagram.payload.chat.messages must contain 1-12 items")
+			}
+		}
+	}
+
+	if d.Scene != nil {
+		errs = append(errs, validateScene(d.Scene, nil, slideValidationPolicy{})...)
+	}
+	return errs
+}
+
 func validateDemoPlanConsistency(resp AnimatedSlideContentResponse) []string {
 	var errs []string
 	if resp.DemoPlan == nil {
@@ -1204,10 +1581,11 @@ func validateDemoPlanConsistency(resp AnimatedSlideContentResponse) []string {
 	hasImage := resp.ImageURL != ""
 	hasSketch := resp.SketchPath != nil && len(resp.SketchPath.Nodes) > 0
 	hasEquations := len(resp.Equations) > 0
+	hasPedagogical := resp.PedagogicalDiagram != nil
 
 	switch kind {
 	case "NONE":
-		if hasImage || hasSketch || hasEquations {
+		if hasImage || hasSketch || hasEquations || hasPedagogical {
 			errs = append(errs, "demoPlan.kind NONE requires no modality fields")
 		}
 	case "SKETCH_PATH", "PHYSICS_GRAPH":
@@ -1221,6 +1599,10 @@ func validateDemoPlanConsistency(resp AnimatedSlideContentResponse) []string {
 	case "IMAGE_DRAW":
 		if !hasImage {
 			errs = append(errs, "demoPlan.kind IMAGE_DRAW requires imageUrl")
+		}
+	case "PEDAGOGICAL_DIAGRAM":
+		if !hasPedagogical {
+			errs = append(errs, "demoPlan.kind PEDAGOGICAL_DIAGRAM requires pedagogicalDiagram")
 		}
 	}
 	return errs
@@ -1476,6 +1858,7 @@ func sanitizeAnimatedSlideWhitelist(raw map[string]interface{}) (AnimatedSlideCo
 		"imageUrl":           {},
 		"equations":          {},
 		"sketchPath":         {},
+		"pedagogicalDiagram": {},
 		"scene":              {},
 	}
 	for k := range raw {
@@ -1494,8 +1877,221 @@ func sanitizeAnimatedSlideWhitelist(raw map[string]interface{}) (AnimatedSlideCo
 	out.ImageURL = asString(raw["imageUrl"])
 	out.Equations = asStringSlice(raw["equations"])
 	out.SketchPath = sanitizeSketchPath(raw["sketchPath"], &sanitized)
+	out.PedagogicalDiagram = sanitizePedagogicalDiagram(raw["pedagogicalDiagram"], &sanitized)
 	out.Scene = sanitizeScene(raw["scene"], &sanitized)
 	return out, sanitized
+}
+
+func sanitizePedagogicalDiagram(v interface{}, sanitized *bool) *PedagogicalDiagramNode {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	allowedKeys := map[string]struct{}{
+		"id":      {},
+		"kind":    {},
+		"deps":    {},
+		"payload": {},
+		"scene":   {},
+	}
+	for k := range m {
+		if _, ok := allowedKeys[k]; !ok {
+			*sanitized = true
+		}
+	}
+
+	out := &PedagogicalDiagramNode{
+		ID:   asString(m["id"]),
+		Kind: asString(m["kind"]),
+		Deps: asStringSlice(m["deps"]),
+	}
+
+	if payloadRaw, ok := m["payload"].(map[string]interface{}); ok {
+		out.Payload = sanitizePedagogicalPayload(payloadRaw, sanitized)
+	}
+	out.Scene = sanitizeScene(m["scene"], sanitized)
+	return out
+}
+
+func sanitizePedagogicalPayload(m map[string]interface{}, sanitized *bool) PedagogicalDiagramPayload {
+	allowedKeys := map[string]struct{}{
+		"variant":     {},
+		"title":       {},
+		"subtitle":    {},
+		"durationSec": {},
+		"shapes":      {},
+		"characters":  {},
+		"table":       {},
+		"chart":       {},
+		"graph":       {},
+		"chat":        {},
+	}
+	for k := range m {
+		if _, ok := allowedKeys[k]; !ok {
+			*sanitized = true
+		}
+	}
+
+	out := PedagogicalDiagramPayload{
+		Variant:     asString(m["variant"]),
+		Title:       asString(m["title"]),
+		Subtitle:    asString(m["subtitle"]),
+		DurationSec: asFloat(m["durationSec"]),
+	}
+
+	if rawShapes, ok := m["shapes"].([]interface{}); ok {
+		out.Shapes = make([]DiagramShape, 0, len(rawShapes))
+		for _, item := range rawShapes {
+			sm, ok := item.(map[string]interface{})
+			if !ok {
+				*sanitized = true
+				continue
+			}
+			out.Shapes = append(out.Shapes, DiagramShape{
+				Kind:  asString(sm["kind"]),
+				XK:    clamp01(asFloat(sm["xk"])),
+				YK:    clamp01(asFloat(sm["yk"])),
+				WK:    clamp01(asFloat(sm["wk"])),
+				HK:    clamp01(asFloat(sm["hk"])),
+				Label: asString(sm["label"]),
+			})
+		}
+	}
+	if rawChars, ok := m["characters"].([]interface{}); ok {
+		out.Characters = make([]DiagramCharacter, 0, len(rawChars))
+		for _, item := range rawChars {
+			cm, ok := item.(map[string]interface{})
+			if !ok {
+				*sanitized = true
+				continue
+			}
+			out.Characters = append(out.Characters, DiagramCharacter{
+				Name: asString(cm["name"]),
+				XK:   clamp01(asFloat(cm["xk"])),
+				YK:   clamp01(asFloat(cm["yk"])),
+				Pose: asString(cm["pose"]),
+			})
+		}
+	}
+	if tm, ok := m["table"].(map[string]interface{}); ok {
+		table := &DiagramTable{
+			Headers: asStringSlice(tm["headers"]),
+			Caption: asString(tm["caption"]),
+		}
+		if rowsRaw, ok := tm["rows"].([]interface{}); ok {
+			table.Rows = make([][]string, 0, len(rowsRaw))
+			for _, rowItem := range rowsRaw {
+				rowRaw, ok := rowItem.([]interface{})
+				if !ok {
+					*sanitized = true
+					continue
+				}
+				row := make([]string, 0, len(rowRaw))
+				for _, cell := range rowRaw {
+					row = append(row, asString(cell))
+				}
+				table.Rows = append(table.Rows, row)
+			}
+		}
+		out.Table = table
+	}
+	if cm, ok := m["chart"].(map[string]interface{}); ok {
+		chart := &DiagramChart{
+			Type:   asString(cm["type"]),
+			Labels: asStringSlice(cm["labels"]),
+		}
+		if seriesRaw, ok := cm["series"].([]interface{}); ok {
+			chart.Series = make([]DiagramChartSeries, 0, len(seriesRaw))
+			for _, s := range seriesRaw {
+				sm, ok := s.(map[string]interface{})
+				if !ok {
+					*sanitized = true
+					continue
+				}
+				ds := DiagramChartSeries{Name: asString(sm["name"])}
+				if valsRaw, ok := sm["values"].([]interface{}); ok {
+					ds.Values = make([]float64, 0, len(valsRaw))
+					for _, v := range valsRaw {
+						ds.Values = append(ds.Values, asFloat(v))
+					}
+				}
+				chart.Series = append(chart.Series, ds)
+			}
+		}
+		out.Chart = chart
+	}
+	if gm, ok := m["graph"].(map[string]interface{}); ok {
+		graph := &DiagramGraph{}
+		if nodesRaw, ok := gm["nodes"].([]interface{}); ok {
+			graph.Nodes = make([]DiagramGraphNode, 0, len(nodesRaw))
+			for _, n := range nodesRaw {
+				nm, ok := n.(map[string]interface{})
+				if !ok {
+					*sanitized = true
+					continue
+				}
+				graph.Nodes = append(graph.Nodes, DiagramGraphNode{
+					ID:    asString(nm["id"]),
+					Label: asString(nm["label"]),
+					XK:    clamp01(asFloat(nm["xk"])),
+					YK:    clamp01(asFloat(nm["yk"])),
+				})
+			}
+		}
+		if edgesRaw, ok := gm["edges"].([]interface{}); ok {
+			graph.Edges = make([]DiagramGraphEdge, 0, len(edgesRaw))
+			for _, e := range edgesRaw {
+				em, ok := e.(map[string]interface{})
+				if !ok {
+					*sanitized = true
+					continue
+				}
+				graph.Edges = append(graph.Edges, DiagramGraphEdge{
+					From:     asString(em["from"]),
+					To:       asString(em["to"]),
+					Label:    asString(em["label"]),
+					Directed: asBool(em["directed"]),
+				})
+			}
+		}
+		out.Graph = graph
+	}
+	if chm, ok := m["chat"].(map[string]interface{}); ok {
+		chat := &DiagramChat{}
+		if partsRaw, ok := chm["participants"].([]interface{}); ok {
+			chat.Participants = make([]DiagramParticipant, 0, len(partsRaw))
+			for _, p := range partsRaw {
+				pm, ok := p.(map[string]interface{})
+				if !ok {
+					*sanitized = true
+					continue
+				}
+				chat.Participants = append(chat.Participants, DiagramParticipant{
+					ID:   asString(pm["id"]),
+					Name: asString(pm["name"]),
+					XK:   clamp01(asFloat(pm["xk"])),
+				})
+			}
+		}
+		if msgsRaw, ok := chm["messages"].([]interface{}); ok {
+			chat.Messages = make([]DiagramMessage, 0, len(msgsRaw))
+			for _, m := range msgsRaw {
+				mm, ok := m.(map[string]interface{})
+				if !ok {
+					*sanitized = true
+					continue
+				}
+				chat.Messages = append(chat.Messages, DiagramMessage{
+					SpeakerID: asString(mm["speakerId"]),
+					Text:      asString(mm["text"]),
+					AtSec:     asFloat(mm["atSec"]),
+				})
+			}
+		}
+		out.Chat = chat
+	}
+
+	return out
 }
 
 func sanitizeDemoPlan(v interface{}, sanitized *bool) *DemoPlan {
@@ -1748,9 +2344,100 @@ func normalizeAndBoundDetail(out *AnimatedSlideContentResponse, sanitized *bool)
 			edge.Label = truncate(strings.TrimSpace(edge.Label), 80, sanitized)
 		}
 	}
+	if out.PedagogicalDiagram != nil {
+		normalizePedagogicalDiagram(out.PedagogicalDiagram, sanitized)
+	}
 
 	if out.Scene != nil {
 		normalizeScene(out.Scene, sanitized)
+	}
+}
+
+func normalizePedagogicalDiagram(d *PedagogicalDiagramNode, sanitized *bool) {
+	if d == nil {
+		return
+	}
+	d.ID = truncate(strings.TrimSpace(d.ID), 64, sanitized)
+	d.Kind = strings.TrimSpace(strings.ToUpper(d.Kind))
+	for i := range d.Deps {
+		d.Deps[i] = truncate(strings.TrimSpace(d.Deps[i]), 64, sanitized)
+	}
+	d.Payload.Variant = strings.TrimSpace(strings.ToLower(d.Payload.Variant))
+	d.Payload.Title = truncate(strings.TrimSpace(d.Payload.Title), 140, sanitized)
+	d.Payload.Subtitle = truncate(strings.TrimSpace(d.Payload.Subtitle), 180, sanitized)
+	if d.Payload.DurationSec < 0 {
+		d.Payload.DurationSec = 0
+		*sanitized = true
+	}
+	for i := range d.Payload.Shapes {
+		s := &d.Payload.Shapes[i]
+		s.Kind = strings.TrimSpace(strings.ToLower(s.Kind))
+		if mapped, ok := shapeKindAliases[s.Kind]; ok {
+			s.Kind = mapped
+			*sanitized = true
+		}
+		s.Label = truncate(strings.TrimSpace(s.Label), 80, sanitized)
+		s.XK, s.YK, s.WK, s.HK = clamp01(s.XK), clamp01(s.YK), clamp01(s.WK), clamp01(s.HK)
+	}
+	for i := range d.Payload.Characters {
+		c := &d.Payload.Characters[i]
+		c.Name = truncate(strings.TrimSpace(c.Name), 80, sanitized)
+		c.Pose = strings.TrimSpace(strings.ToLower(c.Pose))
+		c.XK, c.YK = clamp01(c.XK), clamp01(c.YK)
+	}
+	if d.Payload.Table != nil {
+		for i := range d.Payload.Table.Headers {
+			d.Payload.Table.Headers[i] = truncate(strings.TrimSpace(d.Payload.Table.Headers[i]), 60, sanitized)
+		}
+		for i := range d.Payload.Table.Rows {
+			for j := range d.Payload.Table.Rows[i] {
+				d.Payload.Table.Rows[i][j] = truncate(strings.TrimSpace(d.Payload.Table.Rows[i][j]), 80, sanitized)
+			}
+		}
+		d.Payload.Table.Caption = truncate(strings.TrimSpace(d.Payload.Table.Caption), 200, sanitized)
+	}
+	if d.Payload.Chart != nil {
+		d.Payload.Chart.Type = strings.TrimSpace(strings.ToLower(d.Payload.Chart.Type))
+		for i := range d.Payload.Chart.Labels {
+			d.Payload.Chart.Labels[i] = truncate(strings.TrimSpace(d.Payload.Chart.Labels[i]), 50, sanitized)
+		}
+		for i := range d.Payload.Chart.Series {
+			d.Payload.Chart.Series[i].Name = truncate(strings.TrimSpace(d.Payload.Chart.Series[i].Name), 60, sanitized)
+		}
+	}
+	if d.Payload.Graph != nil {
+		for i := range d.Payload.Graph.Nodes {
+			n := &d.Payload.Graph.Nodes[i]
+			n.ID = truncate(strings.TrimSpace(n.ID), 64, sanitized)
+			n.Label = truncate(strings.TrimSpace(n.Label), 80, sanitized)
+			n.XK, n.YK = clamp01(n.XK), clamp01(n.YK)
+		}
+		for i := range d.Payload.Graph.Edges {
+			e := &d.Payload.Graph.Edges[i]
+			e.From = truncate(strings.TrimSpace(e.From), 64, sanitized)
+			e.To = truncate(strings.TrimSpace(e.To), 64, sanitized)
+			e.Label = truncate(strings.TrimSpace(e.Label), 80, sanitized)
+		}
+	}
+	if d.Payload.Chat != nil {
+		for i := range d.Payload.Chat.Participants {
+			p := &d.Payload.Chat.Participants[i]
+			p.ID = truncate(strings.TrimSpace(p.ID), 64, sanitized)
+			p.Name = truncate(strings.TrimSpace(p.Name), 80, sanitized)
+			p.XK = clamp01(p.XK)
+		}
+		for i := range d.Payload.Chat.Messages {
+			m := &d.Payload.Chat.Messages[i]
+			m.SpeakerID = truncate(strings.TrimSpace(m.SpeakerID), 64, sanitized)
+			m.Text = truncate(strings.TrimSpace(m.Text), 220, sanitized)
+			if m.AtSec < 0 {
+				m.AtSec = 0
+				*sanitized = true
+			}
+		}
+	}
+	if d.Scene != nil {
+		normalizeScene(d.Scene, sanitized)
 	}
 }
 
@@ -1760,6 +2447,11 @@ func normalizeScene(scene *SceneSpec, sanitized *bool) {
 	}
 	if scene.Layout != nil {
 		scene.Layout.Mode = strings.TrimSpace(strings.ToLower(scene.Layout.Mode))
+		switch scene.Layout.Mode {
+		case "split_vertical", "split-horizontal", "split_horizontal":
+			scene.Layout.Mode = "split"
+			*sanitized = true
+		}
 		if scene.Layout.Params == nil {
 			scene.Layout.Params = map[string]interface{}{}
 		}
@@ -1855,10 +2547,11 @@ func resolveSingleModality(out *AnimatedSlideContentResponse, sanitized *bool) {
 		kind := out.DemoPlan.Kind
 		switch kind {
 		case "NONE":
-			if out.ImageURL != "" || len(out.Equations) > 0 || out.SketchPath != nil {
+			if out.ImageURL != "" || len(out.Equations) > 0 || out.SketchPath != nil || out.PedagogicalDiagram != nil {
 				out.ImageURL = ""
 				out.Equations = nil
 				out.SketchPath = nil
+				out.PedagogicalDiagram = nil
 				*sanitized = true
 			}
 			return
@@ -1871,6 +2564,10 @@ func resolveSingleModality(out *AnimatedSlideContentResponse, sanitized *bool) {
 				out.Equations = nil
 				*sanitized = true
 			}
+			if out.PedagogicalDiagram != nil {
+				out.PedagogicalDiagram = nil
+				*sanitized = true
+			}
 			return
 		case "EQUATION_REVEAL":
 			if out.ImageURL != "" {
@@ -1881,8 +2578,30 @@ func resolveSingleModality(out *AnimatedSlideContentResponse, sanitized *bool) {
 				out.SketchPath = nil
 				*sanitized = true
 			}
+			if out.PedagogicalDiagram != nil {
+				out.PedagogicalDiagram = nil
+				*sanitized = true
+			}
 			return
 		case "IMAGE_DRAW":
+			if len(out.Equations) > 0 {
+				out.Equations = nil
+				*sanitized = true
+			}
+			if out.SketchPath != nil {
+				out.SketchPath = nil
+				*sanitized = true
+			}
+			if out.PedagogicalDiagram != nil {
+				out.PedagogicalDiagram = nil
+				*sanitized = true
+			}
+			return
+		case "PEDAGOGICAL_DIAGRAM":
+			if out.ImageURL != "" {
+				out.ImageURL = ""
+				*sanitized = true
+			}
 			if len(out.Equations) > 0 {
 				out.Equations = nil
 				*sanitized = true
@@ -1898,7 +2617,23 @@ func resolveSingleModality(out *AnimatedSlideContentResponse, sanitized *bool) {
 	hasImage := out.ImageURL != ""
 	hasSketch := out.SketchPath != nil && len(out.SketchPath.Nodes) > 0
 	hasEquations := len(out.Equations) > 0
+	hasPedagogical := out.PedagogicalDiagram != nil
 
+	if hasPedagogical {
+		if hasImage {
+			out.ImageURL = ""
+			*sanitized = true
+		}
+		if hasSketch {
+			out.SketchPath = nil
+			*sanitized = true
+		}
+		if hasEquations {
+			out.Equations = nil
+			*sanitized = true
+		}
+		return
+	}
 	if hasSketch {
 		if hasImage {
 			out.ImageURL = ""
@@ -2229,6 +2964,7 @@ Hard constraints:
   1) imageUrl
   2) sketchPath
   3) equations
+  4) pedagogicalDiagram
 - If using sketchPath, keep geometry simple and non-overlapping.
 - Do not include keys outside the schema below.
 - Optional scene metadata is allowed only as declarative JSON under scene.
@@ -2241,11 +2977,13 @@ Hard constraints:
   - EQUATION_REVEAL
   - IMAGE_DRAW
   - PHYSICS_GRAPH
+  - PEDAGOGICAL_DIAGRAM
 - demoPlan.kind must agree with emitted modality fields:
   - SKETCH_PATH -> provide sketchPath
   - EQUATION_REVEAL -> provide equations
   - IMAGE_DRAW -> provide imageUrl
   - PHYSICS_GRAPH -> provide sketchPath
+  - PEDAGOGICAL_DIAGRAM -> provide pedagogicalDiagram
   - NONE -> provide no modality field
 
 Scene request context:
@@ -2274,6 +3012,30 @@ Return JSON:
     "nodes": [{ "id": string, "label": string, "xk": number, "yk": number }],
     "edges": [{ "from": string, "to": string, "label": string }],
     "draw": { "secPerEdge": number, "secPerNode": number, "showArrowheads": boolean }
+  },
+  "pedagogicalDiagram": {
+    "id": string,
+    "kind": "PEDAGOGICAL_DIAGRAM",
+    "deps": string[],
+    "payload": {
+      "variant": string,
+      "title": string,
+      "subtitle": string,
+      "durationSec": number,
+      "shapes": [{ "kind": string, "xk": number, "yk": number, "wk": number, "hk": number, "label": string }],
+      "characters": [{ "name": string, "xk": number, "yk": number, "pose": string }],
+      "table": { "headers": string[], "rows": string[][], "caption": string },
+      "chart": { "type": string, "labels": string[], "series": [{ "name": string, "values": number[] }] },
+      "graph": {
+        "nodes": [{ "id": string, "label": string, "xk": number, "yk": number }],
+        "edges": [{ "from": string, "to": string, "label": string, "directed": boolean }]
+      },
+      "chat": {
+        "participants": [{ "id": string, "name": string, "xk": number }],
+        "messages": [{ "speakerId": string, "text": string, "atSec": number }]
+      }
+    },
+    "scene": object
   },
   "scene": {
     "layout": { "mode": string, "params": object },
@@ -2306,6 +3068,51 @@ Important:
 		req.ScenePolicy.RequireTimeline,
 		req.ScenePolicy.RequireAnimationPlan,
 	)
+}
+
+func buildAnimatedSlideTextFallbackPrompt(req AnimatedSlideContentRequest) string {
+	previousTitle := ""
+	if req.PreviousTopic != nil {
+		previousTitle = req.PreviousTopic.Title
+	}
+	nextTitle := ""
+	if req.NextTopic != nil {
+		nextTitle = req.NextTopic.Title
+	}
+
+	return fmt.Sprintf(`Fill this template exactly with plain text values.
+Topic context:
+- currentTopic.id: %s
+- currentTopic.title: %s
+- currentTopic.summary: %s
+- previousTopic.title: %s
+- nextTopic.title: %s
+- presentationMode: %s
+
+Output template:
+TOPIC_ID: <string>
+EXPLANATION: <single paragraph>
+KEY_POINTS:
+- <point 1>
+- <point 2>
+EXAMPLES:
+- <example 1>
+BRIDGE_FROM_PREVIOUS: <string>
+BRIDGE_TO_NEXT: <string>
+DEMO_KIND: <NONE|IMAGE_DRAW|EQUATION_REVEAL>
+IMAGE_URL: <absolute-url-or-empty>
+EQUATIONS:
+- <equation-1>
+SCENE_LAYOUT_MODE: <split|equation_centered|full_text|grid|stacked_progressive|overlay_layered|canvas_based_dynamic>
+SCENE_TIMELINE_MAX_WAIT_SEC: <number>
+SCENE_ANIMATION_PLAN:
+- step=1|target=title|effect=fade-in|durationSec=0.30
+
+Rules:
+- Plain text only, no JSON.
+- Do not add keys beyond this template.
+- If DEMO_KIND is NONE, keep IMAGE_URL empty and EQUATIONS empty.
+`, req.CurrentTopic.ID, req.CurrentTopic.Title, req.CurrentTopic.Summary, previousTitle, nextTitle, req.PresentationMode)
 }
 
 func buildAnimatedSlideRepairPrompt(req AnimatedSlideContentRequest, rawOutput string, validationErrors []string, parseErr error) string {
@@ -2344,6 +3151,10 @@ func callLLMWithTimeout(ctx context.Context, client LLMClient, endpoint string, 
 	})
 	latencyMs := time.Since(start).Milliseconds()
 	if err != nil {
+		if strings.Contains(err.Error(), "LLM_QUEUE_OVERLOADED") {
+			log.Printf("[LLMResult] endpoint=%s content=%s client=%s model=%s latency_ms=%d status=queue_overloaded",
+				endpoint, contentKind, clientAlias, modelName, latencyMs)
+		}
 		log.Printf("[LLMResult] endpoint=%s content=%s client=%s model=%s latency_ms=%d status=error err=%v",
 			endpoint, contentKind, clientAlias, modelName, latencyMs, err)
 		return "", err
@@ -2395,6 +3206,19 @@ func clientIPFromRequest(r *http.Request) string {
 		return host
 	}
 	return strings.TrimSpace(r.RemoteAddr)
+}
+
+func hasJSONContentType(r *http.Request) bool {
+	ct := strings.TrimSpace(r.Header.Get("Content-Type"))
+	if ct == "" {
+		// Accept missing content-type for compatibility as long as body parses as JSON.
+		return true
+	}
+	mediaType, _, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return false
+	}
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
 func beginQueuedRequest(cacheKey string) (bool, func()) {
@@ -2455,5 +3279,16 @@ func inferContentKind(endpoint string) string {
 		return "task_reflection_generation"
 	default:
 		return "generic_generation"
+	}
+}
+
+func shouldForceModelOverride(clientName string) bool {
+	// "general"/"chat" are virtual routed aliases and may map to different providers.
+	// Let provider clients pick their own configured model for these routes.
+	switch strings.TrimSpace(strings.ToLower(clientName)) {
+	case "general", "chat":
+		return false
+	default:
+		return true
 	}
 }

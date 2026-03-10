@@ -7,7 +7,7 @@ Rules:
 3) Use previous and next topic only for smooth transitions.
 4) Keep output frontend-interpretable only.
 5) Text and demonstration are separate child regions; never describe overlay/stacking behavior.
-6) Choose one primary demo modality for this topic: imageUrl OR sketchPath OR equations.
+6) Choose one primary demo modality for this topic: imageUrl OR sketchPath OR equations OR pedagogicalDiagram.
 7) If demoPlan is provided, demoPlan.kind must be one of:
    NONE, SKETCH_PATH, EQUATION_REVEAL, IMAGE_DRAW, PHYSICS_GRAPH.
 8) If demoPlan.kind is provided, it must agree with modality fields:
@@ -18,7 +18,12 @@ Rules:
 12) scene.animationPlan must contain 1-5 steps with allowed effects only:
    fade-in, typewriter, draw, progressive_draw, stagger_in, highlight, morph, zoom
 13) Do not emit scripts, event handlers, custom draw calls, or imperative renderer commands.
-14) Return only supported top-level keys:
-   topicId, explanation, keyPoints, examples, bridgeFromPrevious, bridgeToNext, demoPlan, imageUrl, equations, sketchPath, scene
-15) No markdown, no commentary, no extra keys.
-16) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.
+14) If pedagogicalDiagram is used, set:
+   - kind = PEDAGOGICAL_DIAGRAM
+   - payload.variant in: shapes, character_scene, table, chart, graph, chat
+   - if payload.variant=shapes, each shapes[].kind must be one of: rect, oval, triangle, diamond
+   - payload coordinates normalized in [0,1]
+15) Return only supported top-level keys:
+   topicId, explanation, keyPoints, examples, bridgeFromPrevious, bridgeToNext, demoPlan, imageUrl, equations, sketchPath, pedagogicalDiagram, scene
+16) No markdown, no commentary, no extra keys.
+17) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.

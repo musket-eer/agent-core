@@ -1,5 +1,11 @@
 package llm
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
 type AnimatedLessonRequest struct {
 	Topic            string         `json:"topic"`
 	CourseTitle      string         `json:"courseTitle"`
@@ -15,6 +21,59 @@ type LearnerProfile struct {
 	EducationLevel string `json:"educationLevel"`
 	Interests      string `json:"interests"`
 	CareerGoals    string `json:"careerGoals"`
+}
+
+func (lp *LearnerProfile) UnmarshalJSON(data []byte) error {
+	type alias struct {
+		Name           string          `json:"name"`
+		EducationLevel string          `json:"educationLevel"`
+		Interests      json.RawMessage `json:"interests"`
+		CareerGoals    json.RawMessage `json:"careerGoals"`
+	}
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+
+	interests, err := decodeFlexibleString(a.Interests)
+	if err != nil {
+		return fmt.Errorf("learner.interests: %w", err)
+	}
+	careerGoals, err := decodeFlexibleString(a.CareerGoals)
+	if err != nil {
+		return fmt.Errorf("learner.careerGoals: %w", err)
+	}
+
+	lp.Name = strings.TrimSpace(a.Name)
+	lp.EducationLevel = strings.TrimSpace(a.EducationLevel)
+	lp.Interests = interests
+	lp.CareerGoals = careerGoals
+	return nil
+}
+
+func decodeFlexibleString(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", nil
+	}
+
+	var single string
+	if err := json.Unmarshal(raw, &single); err == nil {
+		return strings.TrimSpace(single), nil
+	}
+
+	var many []string
+	if err := json.Unmarshal(raw, &many); err == nil {
+		out := make([]string, 0, len(many))
+		for _, v := range many {
+			tv := strings.TrimSpace(v)
+			if tv != "" {
+				out = append(out, tv)
+			}
+		}
+		return strings.Join(out, ", "), nil
+	}
+
+	return "", fmt.Errorf("must be string or string[]")
 }
 
 type AnimationPrefs struct {
@@ -58,21 +117,22 @@ type AnimatedSlideContentRequest struct {
 }
 
 type AnimatedSlideContentResponse struct {
-	TopicID            string      `json:"topicId"`
-	Explanation        string      `json:"explanation"`
-	KeyPoints          []string    `json:"keyPoints"`
-	Examples           []string    `json:"examples"`
-	BridgeFromPrevious string      `json:"bridgeFromPrevious"`
-	BridgeToNext       string      `json:"bridgeToNext"`
-	DemoPlan           *DemoPlan   `json:"demoPlan,omitempty"`
-	ImageURL           string      `json:"imageUrl,omitempty"`
-	Equations          []string    `json:"equations,omitempty"`
-	SketchPath         *SketchPath `json:"sketchPath,omitempty"`
-	Scene              *SceneSpec  `json:"scene,omitempty"`
+	TopicID            string                  `json:"topicId"`
+	Explanation        string                  `json:"explanation"`
+	KeyPoints          []string                `json:"keyPoints"`
+	Examples           []string                `json:"examples"`
+	BridgeFromPrevious string                  `json:"bridgeFromPrevious"`
+	BridgeToNext       string                  `json:"bridgeToNext"`
+	DemoPlan           *DemoPlan               `json:"demoPlan,omitempty"`
+	ImageURL           string                  `json:"imageUrl,omitempty"`
+	Equations          []string                `json:"equations,omitempty"`
+	SketchPath         *SketchPath             `json:"sketchPath,omitempty"`
+	PedagogicalDiagram *PedagogicalDiagramNode `json:"pedagogicalDiagram,omitempty"`
+	Scene              *SceneSpec              `json:"scene,omitempty"`
 }
 
 type DemoPlan struct {
-	Kind              string `json:"kind"` // NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH
+	Kind              string `json:"kind"` // NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH|PEDAGOGICAL_DIAGRAM
 	Reason            string `json:"reason,omitempty"`
 	AnimationEmphasis string `json:"animationEmphasis,omitempty"` // progressive_draw|step_trace|settle_motion|reveal
 }
@@ -148,6 +208,97 @@ type ScenePolicy struct {
 	RequireScene         bool `json:"requireScene,omitempty"`
 	RequireTimeline      bool `json:"requireTimeline,omitempty"`
 	RequireAnimationPlan bool `json:"requireAnimationPlan,omitempty"`
+}
+
+type PedagogicalDiagramNode struct {
+	ID      string                    `json:"id"`
+	Kind    string                    `json:"kind"`
+	Deps    []string                  `json:"deps,omitempty"`
+	Payload PedagogicalDiagramPayload `json:"payload"`
+	Scene   *SceneSpec                `json:"scene,omitempty"`
+}
+
+type PedagogicalDiagramPayload struct {
+	Variant     string  `json:"variant"`
+	Title       string  `json:"title,omitempty"`
+	Subtitle    string  `json:"subtitle,omitempty"`
+	DurationSec float64 `json:"durationSec,omitempty"`
+
+	Shapes     []DiagramShape     `json:"shapes,omitempty"`
+	Characters []DiagramCharacter `json:"characters,omitempty"`
+	Table      *DiagramTable      `json:"table,omitempty"`
+	Chart      *DiagramChart      `json:"chart,omitempty"`
+	Graph      *DiagramGraph      `json:"graph,omitempty"`
+	Chat       *DiagramChat       `json:"chat,omitempty"`
+}
+
+type DiagramShape struct {
+	Kind  string  `json:"kind"`
+	XK    float64 `json:"xk"`
+	YK    float64 `json:"yk"`
+	WK    float64 `json:"wk"`
+	HK    float64 `json:"hk"`
+	Label string  `json:"label,omitempty"`
+}
+
+type DiagramCharacter struct {
+	Name string  `json:"name"`
+	XK   float64 `json:"xk"`
+	YK   float64 `json:"yk"`
+	Pose string  `json:"pose,omitempty"`
+}
+
+type DiagramTable struct {
+	Headers []string   `json:"headers"`
+	Rows    [][]string `json:"rows"`
+	Caption string     `json:"caption,omitempty"`
+}
+
+type DiagramChart struct {
+	Type   string               `json:"type"`
+	Labels []string             `json:"labels"`
+	Series []DiagramChartSeries `json:"series"`
+}
+
+type DiagramChartSeries struct {
+	Name   string    `json:"name"`
+	Values []float64 `json:"values"`
+}
+
+type DiagramGraph struct {
+	Nodes []DiagramGraphNode `json:"nodes"`
+	Edges []DiagramGraphEdge `json:"edges"`
+}
+
+type DiagramGraphNode struct {
+	ID    string  `json:"id"`
+	Label string  `json:"label"`
+	XK    float64 `json:"xk"`
+	YK    float64 `json:"yk"`
+}
+
+type DiagramGraphEdge struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Label    string `json:"label,omitempty"`
+	Directed bool   `json:"directed,omitempty"`
+}
+
+type DiagramChat struct {
+	Participants []DiagramParticipant `json:"participants"`
+	Messages     []DiagramMessage     `json:"messages"`
+}
+
+type DiagramParticipant struct {
+	ID   string  `json:"id"`
+	Name string  `json:"name"`
+	XK   float64 `json:"xk"`
+}
+
+type DiagramMessage struct {
+	SpeakerID string  `json:"speakerId"`
+	Text      string  `json:"text"`
+	AtSec     float64 `json:"atSec"`
 }
 
 type AnimatedTreeSlideResponse struct {
