@@ -108,15 +108,31 @@ func buildRoutePool(route string) []string {
 		return dedupeStrings(out)
 	}
 
-	// Default dynamic discovery by suffix, excluding the virtual alias itself.
-	suffix := "-" + route
-	llmClientsMu.RLock()
-	out := make([]string, 0, len(llmClients))
-	for alias := range llmClients {
-		if alias == route {
-			continue
+	// Safe defaults: route only providers with known endpoint coverage/payload compatibility.
+	// Bedrock is excluded unless explicitly configured through LLM_ROUTE_*.
+	var preferred []string
+	switch route {
+	case "general":
+		preferred = []string{
+			"deepseek-general",
+			"gemini-general",
+			"openai-general",
+			"deepseek-fast",
+			"deepseek-reasoner",
 		}
-		if strings.HasSuffix(alias, suffix) {
+	case "chat":
+		preferred = []string{
+			"deepseek-chat",
+			"gemini-chat",
+			"openai-chat",
+		}
+	default:
+		preferred = nil
+	}
+	llmClientsMu.RLock()
+	out := make([]string, 0, len(preferred))
+	for _, alias := range preferred {
+		if _, ok := llmClients[alias]; ok {
 			out = append(out, alias)
 		}
 	}

@@ -64,6 +64,36 @@ var GeminiEndpointConfigs = map[string]GeminiConfig{
 		MaxTokens:   512,
 		ClientName:  "gemini-chat",
 	},
+	"/lessons/animated-knowledge-graph": {
+		ModelId:     "gemini-2.0-flash",
+		Temperature: 0.2,
+		MaxTokens:   2200,
+		ClientName:  "gemini-general",
+	},
+	"/lessons/animated-slide-content": {
+		ModelId:     "gemini-2.0-flash",
+		Temperature: 0.2,
+		MaxTokens:   1400,
+		ClientName:  "gemini-general",
+	},
+	"/lessons/animated-slide-scene-content": {
+		ModelId:     "gemini-2.0-flash",
+		Temperature: 0.2,
+		MaxTokens:   1400,
+		ClientName:  "gemini-general",
+	},
+	"/animated-video/tree-slide": {
+		ModelId:     "gemini-2.0-flash",
+		Temperature: 0.2,
+		MaxTokens:   2200,
+		ClientName:  "gemini-general",
+	},
+	"/animated-video/node-content": {
+		ModelId:     "gemini-2.0-flash",
+		Temperature: 0.2,
+		MaxTokens:   1400,
+		ClientName:  "gemini-general",
+	},
 }
 
 // GetGeminiConfig returns the GeminiConfig for a given endpoint.
