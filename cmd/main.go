@@ -129,25 +129,7 @@ func registerLLMClients() []string {
 	registerDeepseekAlias("openai-general", "OPENAI_API_KEY", "OPENAI_BASE_URL")
 	registerDeepseekAlias("openai-chat", "OPENAI_CHAT_API_KEY", "OPENAI_CHAT_BASE_URL")
 
-	// Gemini aliases.
-	registerGeminiAlias := func(alias, primaryKeyEnv string, fallbackKeyEnv string) {
-		key := os.Getenv(primaryKeyEnv)
-		if strings.TrimSpace(key) == "" && fallbackKeyEnv != "" {
-			key = os.Getenv(fallbackKeyEnv)
-		}
-		baseURL := os.Getenv("GEMINI_BASE_URL")
-		if strings.TrimSpace(key) == "" {
-			return
-		}
-		client, err := clients.NewGeminiClient(key, baseURL)
-		if err != nil {
-			log.Printf("⚠️ Skipping %s: %v", alias, err)
-			return
-		}
-		register(alias, client)
-	}
-	registerGeminiAlias("gemini-general", "GEMINI_GENERAL_API_KEY", "GEMINI_API_KEY")
-	registerGeminiAlias("gemini-chat", "GEMINI_CHAT_API_KEY", "GEMINI_API_KEY")
+	// Gemini aliases are intentionally disabled for now.
 
 	// Bedrock aliases.
 	awsRegion := firstNonEmpty(os.Getenv("AWS_REGION"), os.Getenv("AWS_DEFAULT_REGION"))
@@ -181,19 +163,14 @@ func configureLLMQueueWorkers(activeAliases []string) {
 	if contains(activeAliases, "deepseek-chat") || contains(activeAliases, "chat") {
 		workerLanes++
 	}
-	if contains(activeAliases, "gemini-general") {
-		workerLanes++
-	}
-
 	if workerLanes < 1 {
 		workerLanes = 1
 	}
 	_ = os.Setenv("LLM_QUEUE_WORKERS", strconv.Itoa(workerLanes))
 	log.Printf("✅ LLM queue workers auto-configured: %d", workerLanes)
-	log.Printf("ℹ️ Worker lanes active: deepseek-general=%t deepseek-chat=%t gemini-general=%t",
+	log.Printf("ℹ️ Worker lanes active: deepseek-general=%t deepseek-chat=%t",
 		contains(activeAliases, "deepseek-general") || contains(activeAliases, "general"),
 		contains(activeAliases, "deepseek-chat") || contains(activeAliases, "chat"),
-		contains(activeAliases, "gemini-general"),
 	)
 }
 

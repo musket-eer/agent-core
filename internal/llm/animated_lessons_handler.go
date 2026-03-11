@@ -39,6 +39,15 @@ const (
 	animatedSceneRateLimit         = 300
 	animatedDefaultRateWindow      = time.Minute
 	animatedMaxConcurrentSlides    = 16
+	slideExplanationMaxChars       = 600
+	slideBridgeMaxChars            = 140
+	slideKeyPointsMaxItems         = 4
+	slideKeyPointMaxChars          = 140
+	slideExamplesMaxItems          = 2
+	slideExampleMaxChars           = 160
+	slideEquationsMaxItems         = 4
+	slideEquationMaxChars          = 100
+	slideDemoPlanReasonMaxChars    = 140
 )
 
 type slideValidationPolicy struct {
@@ -67,6 +76,8 @@ Return only JSON matching the required schema.
 Rules:
 1) Focus only on the current topic.
 2) Keep language natural, concise, and classroom-ready.
+2.1) Keep textual content compact for slide UI: explanation <= 600 chars, each keyPoint <= 140 chars, each example <= 160 chars, bridge lines <= 140 chars.
+2.2) Prefer 2-4 keyPoints and 0-2 examples.
 3) Use previous and next topic only for smooth transitions.
 4) Keep output frontend-interpretable only.
 5) Text and demonstration are separate child regions; never describe overlay/stacking between them.
@@ -1376,32 +1387,32 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 	if resp.Explanation == "" {
 		errs = append(errs, "explanation is required")
 	}
-	if len(resp.Explanation) > 1200 {
-		errs = append(errs, "explanation is too long (max 1200)")
+	if len(resp.Explanation) > slideExplanationMaxChars {
+		errs = append(errs, fmt.Sprintf("explanation is too long (max %d)", slideExplanationMaxChars))
 	}
-	if len(resp.KeyPoints) < 1 || len(resp.KeyPoints) > 6 {
-		errs = append(errs, "keyPoints must contain 1-6 items")
+	if len(resp.KeyPoints) < 1 || len(resp.KeyPoints) > slideKeyPointsMaxItems {
+		errs = append(errs, fmt.Sprintf("keyPoints must contain 1-%d items", slideKeyPointsMaxItems))
 	}
-	if len(resp.Examples) > 4 {
-		errs = append(errs, "examples must contain 0-4 items")
+	if len(resp.Examples) > slideExamplesMaxItems {
+		errs = append(errs, fmt.Sprintf("examples must contain 0-%d items", slideExamplesMaxItems))
 	}
-	if len(resp.Equations) > 6 {
-		errs = append(errs, "equations must contain 0-6 items")
+	if len(resp.Equations) > slideEquationsMaxItems {
+		errs = append(errs, fmt.Sprintf("equations must contain 0-%d items", slideEquationsMaxItems))
 	}
 	for i, kp := range resp.KeyPoints {
 		if strings.TrimSpace(kp) == "" {
 			errs = append(errs, fmt.Sprintf("keyPoints[%d] must be non-empty", i))
 		}
-		if len(strings.TrimSpace(kp)) > 220 {
-			errs = append(errs, fmt.Sprintf("keyPoints[%d] is too long (max 220)", i))
+		if len(strings.TrimSpace(kp)) > slideKeyPointMaxChars {
+			errs = append(errs, fmt.Sprintf("keyPoints[%d] is too long (max %d)", i, slideKeyPointMaxChars))
 		}
 	}
 	for i, ex := range resp.Examples {
 		if strings.TrimSpace(ex) == "" {
 			errs = append(errs, fmt.Sprintf("examples[%d] must be non-empty", i))
 		}
-		if len(strings.TrimSpace(ex)) > 260 {
-			errs = append(errs, fmt.Sprintf("examples[%d] is too long (max 260)", i))
+		if len(strings.TrimSpace(ex)) > slideExampleMaxChars {
+			errs = append(errs, fmt.Sprintf("examples[%d] is too long (max %d)", i, slideExampleMaxChars))
 		}
 	}
 	for i, eq := range resp.Equations {
@@ -1409,15 +1420,15 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 		if eq == "" {
 			errs = append(errs, fmt.Sprintf("equations[%d] must be non-empty", i))
 		}
-		if len(eq) > 120 {
-			errs = append(errs, fmt.Sprintf("equations[%d] is too long (max 120)", i))
+		if len(eq) > slideEquationMaxChars {
+			errs = append(errs, fmt.Sprintf("equations[%d] is too long (max %d)", i, slideEquationMaxChars))
 		}
 	}
-	if len(resp.BridgeFromPrevious) > 240 {
-		errs = append(errs, "bridgeFromPrevious is too long (max 240)")
+	if len(resp.BridgeFromPrevious) > slideBridgeMaxChars {
+		errs = append(errs, fmt.Sprintf("bridgeFromPrevious is too long (max %d)", slideBridgeMaxChars))
 	}
-	if len(resp.BridgeToNext) > 240 {
-		errs = append(errs, "bridgeToNext is too long (max 240)")
+	if len(resp.BridgeToNext) > slideBridgeMaxChars {
+		errs = append(errs, fmt.Sprintf("bridgeToNext is too long (max %d)", slideBridgeMaxChars))
 	}
 	if resp.ImageURL != "" {
 		parsed, err := url.Parse(resp.ImageURL)
@@ -1430,8 +1441,8 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 		if _, ok := allowedDemoPlanKinds[kind]; !ok {
 			errs = append(errs, "demoPlan.kind must be one of NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH|PEDAGOGICAL_DIAGRAM")
 		}
-		if len(strings.TrimSpace(resp.DemoPlan.Reason)) > 240 {
-			errs = append(errs, "demoPlan.reason is too long (max 240)")
+		if len(strings.TrimSpace(resp.DemoPlan.Reason)) > slideDemoPlanReasonMaxChars {
+			errs = append(errs, fmt.Sprintf("demoPlan.reason is too long (max %d)", slideDemoPlanReasonMaxChars))
 		}
 		if len(strings.TrimSpace(resp.DemoPlan.AnimationEmphasis)) > 40 {
 			errs = append(errs, "demoPlan.animationEmphasis is too long (max 40)")
@@ -2308,14 +2319,14 @@ func normalizeTreeSlideNode(node *TreeSlideNode, sanitized *bool) {
 
 func normalizeAndBoundDetail(out *AnimatedSlideContentResponse, sanitized *bool) {
 	out.TopicID = strings.TrimSpace(out.TopicID)
-	out.Explanation = truncate(strings.TrimSpace(out.Explanation), 1200, sanitized)
-	out.BridgeFromPrevious = truncate(strings.TrimSpace(out.BridgeFromPrevious), 240, sanitized)
-	out.BridgeToNext = truncate(strings.TrimSpace(out.BridgeToNext), 240, sanitized)
+	out.Explanation = truncate(strings.TrimSpace(out.Explanation), slideExplanationMaxChars, sanitized)
+	out.BridgeFromPrevious = truncate(strings.TrimSpace(out.BridgeFromPrevious), slideBridgeMaxChars, sanitized)
+	out.BridgeToNext = truncate(strings.TrimSpace(out.BridgeToNext), slideBridgeMaxChars, sanitized)
 	out.ImageURL = strings.TrimSpace(out.ImageURL)
 
-	out.KeyPoints = boundStringArray(out.KeyPoints, 6, 220, sanitized)
-	out.Examples = boundStringArray(out.Examples, 4, 260, sanitized)
-	out.Equations = boundStringArray(out.Equations, 6, 120, sanitized)
+	out.KeyPoints = boundStringArray(out.KeyPoints, slideKeyPointsMaxItems, slideKeyPointMaxChars, sanitized)
+	out.Examples = boundStringArray(out.Examples, slideExamplesMaxItems, slideExampleMaxChars, sanitized)
+	out.Equations = boundStringArray(out.Equations, slideEquationsMaxItems, slideEquationMaxChars, sanitized)
 
 	if out.SketchPath != nil {
 		out.SketchPath.Title = truncate(strings.TrimSpace(out.SketchPath.Title), 120, sanitized)
@@ -2960,6 +2971,11 @@ Hard constraints:
 - If presentationMode is scene, include a populated scene object.
 - Keep output frontend-interpretable (no custom node DSL, no canvas scripting).
 - Text and demo are separate child regions; do not describe overlay behavior.
+- Keep text concise for fixed slide regions:
+  - explanation max 600 chars
+  - keyPoints: 2-4 items, each <= 140 chars
+  - examples: 0-2 items, each <= 160 chars
+  - bridgeFromPrevious and bridgeToNext: each <= 140 chars
 - Choose one primary demo modality for this topic:
   1) imageUrl
   2) sketchPath

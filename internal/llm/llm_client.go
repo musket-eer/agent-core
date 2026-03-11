@@ -123,16 +123,10 @@ func buildRoutePool(route string) []string {
 	case "general":
 		preferred = []string{
 			"deepseek-general",
-			"gemini-general",
-			"openai-general",
-			"deepseek-fast",
-			"deepseek-reasoner",
 		}
 	case "chat":
 		preferred = []string{
 			"deepseek-chat",
-			"gemini-chat",
-			"openai-chat",
 		}
 	default:
 		preferred = nil

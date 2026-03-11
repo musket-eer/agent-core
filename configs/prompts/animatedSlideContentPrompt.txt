@@ -4,6 +4,11 @@ Return only JSON matching the required schema.
 Rules:
 1) Focus only on the current topic.
 2) Keep language natural, concise, and classroom-ready.
+2.1) Keep textual content compact for slide UI:
+   - explanation <= 600 chars
+   - keyPoints: 2-4 items, each <= 140 chars
+   - examples: 0-2 items, each <= 160 chars
+   - bridgeFromPrevious and bridgeToNext: each <= 140 chars
 3) Use previous and next topic only for smooth transitions.
 4) Keep output frontend-interpretable only.
 5) Text and demonstration are separate child regions; never describe overlay/stacking behavior.
