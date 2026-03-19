@@ -220,16 +220,25 @@ type PedagogicalDiagramNode struct {
 
 type PedagogicalDiagramPayload struct {
 	Variant     string  `json:"variant"`
+	Pattern     string  `json:"pattern,omitempty"`
 	Title       string  `json:"title,omitempty"`
 	Subtitle    string  `json:"subtitle,omitempty"`
 	DurationSec float64 `json:"durationSec,omitempty"`
 
-	Shapes     []DiagramShape     `json:"shapes,omitempty"`
-	Characters []DiagramCharacter `json:"characters,omitempty"`
-	Table      *DiagramTable      `json:"table,omitempty"`
-	Chart      *DiagramChart      `json:"chart,omitempty"`
-	Graph      *DiagramGraph      `json:"graph,omitempty"`
-	Chat       *DiagramChat       `json:"chat,omitempty"`
+	Shapes          []DiagramShape          `json:"shapes,omitempty"`
+	Characters      []DiagramCharacter      `json:"characters,omitempty"`
+	Table           *DiagramTable           `json:"table,omitempty"`
+	Chart           *DiagramChart           `json:"chart,omitempty"`
+	Graph           *DiagramGraph           `json:"graph,omitempty"`
+	Timeline        *DiagramTimeline        `json:"timeline,omitempty"`
+	Tree            *DiagramTree            `json:"tree,omitempty"`
+	StackQueue      *DiagramStackQueue      `json:"stackQueue,omitempty"`
+	CoordinatePlane *DiagramCoordinatePlane `json:"coordinatePlane,omitempty"`
+	FlowDiagram     *DiagramFlowDiagram     `json:"flowDiagram,omitempty"`
+	SetDiagram      *DiagramSetDiagram      `json:"setDiagram,omitempty"`
+	Heatmap         *DiagramHeatmap         `json:"heatmap,omitempty"`
+	Field           *DiagramField           `json:"field,omitempty"`
+	Chat            *DiagramChat            `json:"chat,omitempty"`
 }
 
 type DiagramShape struct {
@@ -282,6 +291,89 @@ type DiagramGraphEdge struct {
 	To       string `json:"to"`
 	Label    string `json:"label,omitempty"`
 	Directed bool   `json:"directed,omitempty"`
+}
+
+type DiagramTimeline struct {
+	Events []DiagramTimelineEvent `json:"events"`
+}
+
+type DiagramTimelineEvent struct {
+	ID    string  `json:"id"`
+	Label string  `json:"label"`
+	AtK   float64 `json:"atK"`
+}
+
+type DiagramTree struct {
+	Nodes []DiagramGraphNode `json:"nodes"`
+	Edges []DiagramGraphEdge `json:"edges"`
+}
+
+type DiagramStackQueue struct {
+	Mode  string   `json:"mode"`
+	Items []string `json:"items"`
+}
+
+type DiagramCoordinatePlane struct {
+	Points []DiagramGraphNode         `json:"points"`
+	Curves []DiagramCoordinateCurve   `json:"curves"`
+}
+
+type DiagramCoordinateCurve struct {
+	ID     string                 `json:"id"`
+	Points []DiagramCoordinatePt  `json:"points"`
+}
+
+type DiagramCoordinatePt struct {
+	XK float64 `json:"xk"`
+	YK float64 `json:"yk"`
+}
+
+type DiagramFlowDiagram struct {
+	Stages []DiagramFlowStage `json:"stages"`
+	Links  []DiagramFlowLink  `json:"links"`
+}
+
+type DiagramFlowStage struct {
+	ID    string  `json:"id"`
+	Label string  `json:"label"`
+	XK    float64 `json:"xk"`
+	YK    float64 `json:"yk"`
+}
+
+type DiagramFlowLink struct {
+	From  string `json:"from"`
+	To    string `json:"to"`
+	Label string `json:"label,omitempty"`
+}
+
+type DiagramSetDiagram struct {
+	Sets []DiagramSet `json:"sets"`
+}
+
+type DiagramSet struct {
+	ID    string  `json:"id"`
+	Label string  `json:"label"`
+	XK    float64 `json:"xk"`
+	YK    float64 `json:"yk"`
+	RK    float64 `json:"rk"`
+}
+
+type DiagramHeatmap struct {
+	LabelsX []string    `json:"labelsX"`
+	LabelsY []string    `json:"labelsY"`
+	Values  [][]float64 `json:"values"`
+}
+
+type DiagramField struct {
+	Vectors []DiagramVector `json:"vectors"`
+}
+
+type DiagramVector struct {
+	ID  string  `json:"id"`
+	XK  float64 `json:"xk"`
+	YK  float64 `json:"yk"`
+	DXK float64 `json:"dxk"`
+	DYK float64 `json:"dyk"`
 }
 
 type DiagramChat struct {

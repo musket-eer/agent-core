@@ -5,10 +5,10 @@ Rules:
 1) Focus only on the current topic.
 2) Keep language natural, concise, and classroom-ready.
 2.1) Keep textual content compact for slide UI:
-   - explanation <= 600 chars
-   - keyPoints: 2-4 items, each <= 140 chars
-   - examples: 0-2 items, each <= 160 chars
-   - bridgeFromPrevious and bridgeToNext: each <= 140 chars
+   - explanation <= 260 chars
+   - keyPoints: 2-3 items, each <= 90 chars
+   - examples: 0-1 items, each <= 110 chars
+   - bridgeFromPrevious and bridgeToNext: each <= 90 chars
 3) Use previous and next topic only for smooth transitions.
 4) Keep output frontend-interpretable only.
 5) Text and demonstration are separate child regions; never describe overlay/stacking behavior.
@@ -25,10 +25,18 @@ Rules:
 13) Do not emit scripts, event handlers, custom draw calls, or imperative renderer commands.
 14) If pedagogicalDiagram is used, set:
    - kind = PEDAGOGICAL_DIAGRAM
-   - payload.variant in: shapes, character_scene, table, chart, graph, chat
+   - payload.variant in: graph, table, timeline, tree, stack_queue, coordinate_plane, flow_diagram, set_diagram, heatmap, field, shapes, character_scene, chart, chat
+   - payload.pattern optional, but if present must be one of:
+     PROGRESSIVE_REVEAL, BUILD_UP_CONSTRUCTION, STEP_EXECUTION, STATE_TRANSITION, DEPENDENCY_PROPAGATION, VALUE_ACCUMULATION, FOCUS_SHIFT, STRUCTURAL_TRANSFORMATION, MORPHING, SIMULATION_LOOP, PARALLEL_COMPARISON, COUNTEREXAMPLE_REVEAL, PATH_TRACING, COLLAPSE_EXPAND, ENERGY_FLOW_SIMULATION, GRAPH_TRAVERSAL, DP_FILL
    - if payload.variant=shapes, each shapes[].kind must be one of: rect, oval, triangle, diamond
    - payload coordinates normalized in [0,1]
-15) Return only supported top-level keys:
+15) Infer the best pedagogical variant by domain:
+   - Algorithms: graph, table, tree, stack_queue
+   - History: timeline, graph
+   - Math: coordinate_plane, chart, table
+   - Systems: flow_diagram, graph
+   - Probability/Logic: set_diagram, tree, heatmap
+16) Return only supported top-level keys:
    topicId, explanation, keyPoints, examples, bridgeFromPrevious, bridgeToNext, demoPlan, imageUrl, equations, sketchPath, pedagogicalDiagram, scene
-16) No markdown, no commentary, no extra keys.
-17) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.
+17) No markdown, no commentary, no extra keys.
+18) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.
