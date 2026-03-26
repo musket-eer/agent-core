@@ -47,43 +47,46 @@ var allowedQuestionDifficulty = map[string]struct{}{
 	"hard":   {},
 }
 
-const defaultMostLearnedExamPrompt = `You generate exam payloads in strict JSON.
-Return this schema exactly:
-{
-  "title": string,
-  "instructions": string,
-  "questions": [
-    {
-      "id": string,
-      "type": "single_choice|multi_select|short_text|long_text|numeric|boolean|code",
-      "prompt": string,
-      "points": number,
-      "required": boolean,
-      "difficulty": "easy|medium|hard",
-      "options": string[],
-      "ui": {
-        "placeholder": string,
-        "rows": number,
-        "min": number,
-        "max": number
-      },
-      "metadata": {},
-      "answerKey": any,
-      "rubric": string[],
-      "modelAnswer": string
-    }
-  ]
-}
+const defaultMostLearnedExamPrompt = `You generate exams as plain text using a rigid template.
+Return plain text only in this exact template.
+
+TITLE: <exam title>
+INSTRUCTIONS: <one short sentence>
+
+QUESTION_START
+ID: q_1
+TYPE: single_choice|multi_select|short_text|long_text|numeric|boolean|code
+PROMPT: <question prompt>
+POINTS: <integer 1-20>
+REQUIRED: true|false
+DIFFICULTY: easy|medium|hard
+OPTIONS: <option 1> | <option 2> | <option 3> | <option 4>
+ANSWER_KEY: <format depends on type>
+RUBRIC: <criterion 1> | <criterion 2> | <criterion 3>
+MODEL_ANSWER: <short ideal answer>
+QUESTION_END
+
 Rules:
-- keep topic fidelity
-- produce exactly requested question count
-- include answerKey for every question
-- no markdown, no commentary, no extra keys`
+- output exactly the requested number of QUESTION_START/QUESTION_END blocks
+- no markdown, no JSON, no prose outside the template
+- single_choice ANSWER_KEY must exactly match one option
+- multi_select ANSWER_KEY must list one or more exact options separated by |
+- boolean ANSWER_KEY must be true or false
+- numeric ANSWER_KEY must be value=<number>;tolerance=<number>
+- short_text, long_text, and code ANSWER_KEY must be keywords separated by |
+- OPTIONS is required only for single_choice and multi_select
+- RUBRIC is required for short_text, long_text, and code
+- keep topic fidelity`
 
 type GenerateExamContractRequest struct {
 	SessionID     string `json:"sessionId"`
 	Topic         string `json:"topic"`
 	QuestionCount int    `json:"questionCount"`
+	CourseID      string `json:"courseId,omitempty"`
+	CourseTitle   string `json:"courseTitle,omitempty"`
+	UnitID        string `json:"unitId,omitempty"`
+	UnitTitle     string `json:"unitTitle,omitempty"`
+	UnitObjective string `json:"unitObjective,omitempty"`
 }
 
 type SubmitSessionContractRequest struct {
@@ -257,6 +260,11 @@ func GenerateExamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SessionID = strings.TrimSpace(req.SessionID)
 	req.Topic = strings.TrimSpace(req.Topic)
+	req.CourseID = strings.TrimSpace(req.CourseID)
+	req.CourseTitle = strings.TrimSpace(req.CourseTitle)
+	req.UnitID = strings.TrimSpace(req.UnitID)
+	req.UnitTitle = strings.TrimSpace(req.UnitTitle)
+	req.UnitObjective = strings.TrimSpace(req.UnitObjective)
 	if req.SessionID == "" || req.Topic == "" || req.QuestionCount < 1 || req.QuestionCount > 30 {
 		writeExamContractError(w, http.StatusBadRequest, "INVALID_REQUEST", "sessionId, topic, and valid questionCount are required")
 		return
@@ -266,7 +274,20 @@ func GenerateExamHandler(w http.ResponseWriter, r *http.Request) {
 	cachePayload, _ := json.Marshal(struct {
 		Topic         string `json:"topic"`
 		QuestionCount int    `json:"questionCount"`
-	}{Topic: strings.ToLower(req.Topic), QuestionCount: req.QuestionCount})
+		CourseID      string `json:"courseId,omitempty"`
+		CourseTitle   string `json:"courseTitle,omitempty"`
+		UnitID        string `json:"unitId,omitempty"`
+		UnitTitle     string `json:"unitTitle,omitempty"`
+		UnitObjective string `json:"unitObjective,omitempty"`
+	}{
+		Topic:         strings.ToLower(req.Topic),
+		QuestionCount: req.QuestionCount,
+		CourseID:      strings.ToLower(req.CourseID),
+		CourseTitle:   strings.ToLower(req.CourseTitle),
+		UnitID:        strings.ToLower(req.UnitID),
+		UnitTitle:     strings.ToLower(req.UnitTitle),
+		UnitObjective: strings.ToLower(req.UnitObjective),
+	})
 	cacheKey := generateExamContractEndpoint + ":" + string(cachePayload)
 
 	var artifact generatedExamArtifact
@@ -455,16 +476,13 @@ func generateExamArtifact(ctx context.Context, req GenerateExamContractRequest) 
 	systemPrompt := loadExamPrompt()
 	userPrompt := buildExamPrompt(req)
 	examID := "exam_" + uuid.NewString()
-	seed := stableExamSeed(req.Topic, req.QuestionCount)
+	seed := stableExamSeed(req)
 
 	raw, err := callLLMWithTimeout(ctx, client, generateExamContractEndpoint, map[string]interface{}{
 		"model":       cfg.ModelId,
 		"temperature": 0.2,
 		"max_tokens":  2600,
 		"seed":        seed,
-		"response_format": map[string]interface{}{
-			"type": "json_object",
-		},
 		"input": map[string]string{
 			"prompt": systemPrompt + "\n\n" + userPrompt,
 		},
@@ -477,6 +495,7 @@ func generateExamArtifact(ctx context.Context, req GenerateExamContractRequest) 
 	if parseErr == nil && len(violations) == 0 {
 		return artifact, cfg.ModelId, "pass", nil
 	}
+	log.Printf("[GenerateExam] parse failed parse_error=%v violations=%v raw_prefix=%q", parseErr, violations, rawPrefix(raw, 400))
 
 	repairPrompt := buildExamRepairPrompt(req, raw, violations, parseErr)
 	repairedRaw, repairErr := callLLMWithTimeout(ctx, client, generateExamContractEndpoint, map[string]interface{}{
@@ -484,9 +503,6 @@ func generateExamArtifact(ctx context.Context, req GenerateExamContractRequest) 
 		"temperature": 0.2,
 		"max_tokens":  2600,
 		"seed":        seed + 1,
-		"response_format": map[string]interface{}{
-			"type": "json_object",
-		},
 		"input": map[string]string{
 			"prompt": systemPrompt + "\n\n" + repairPrompt,
 		},
@@ -497,16 +513,15 @@ func generateExamArtifact(ctx context.Context, req GenerateExamContractRequest) 
 
 	finalArtifact, finalViolations, finalParseErr := parseExamOutput(repairedRaw, req, examID)
 	if finalParseErr != nil || len(finalViolations) > 0 {
-		log.Printf("[GenerateExam] repair failed parse_error=%v violations=%v", finalParseErr, finalViolations)
+		log.Printf("[GenerateExam] repair failed parse_error=%v violations=%v raw_prefix=%q", finalParseErr, finalViolations, rawPrefix(repairedRaw, 400))
 		return generatedExamArtifact{}, cfg.ModelId, "failed", fmt.Errorf("LLM_INVALID_OUTPUT")
 	}
 	return finalArtifact, cfg.ModelId, "pass_after_repair", nil
 }
 
 func parseExamOutput(raw string, req GenerateExamContractRequest, examID string) (generatedExamArtifact, []string, error) {
-	var out llmExamEnvelope
-	cleaned := utils.CleanJSONResponse(raw)
-	if err := json.Unmarshal([]byte(cleaned), &out); err != nil {
+	out, err := parseExamTemplate(raw)
+	if err != nil {
 		return generatedExamArtifact{}, nil, err
 	}
 
@@ -806,12 +821,51 @@ func loadExamPrompt() string {
 }
 
 func buildExamPrompt(req GenerateExamContractRequest) string {
-	return fmt.Sprintf("Topic: %s\nQuestion count: %d\nGenerate strict JSON output.", req.Topic, req.QuestionCount)
+	var sb strings.Builder
+	sb.WriteString("Topic: ")
+	sb.WriteString(req.Topic)
+	sb.WriteString("\n")
+	sb.WriteString(fmt.Sprintf("Question count: %d\n", req.QuestionCount))
+	if req.CourseTitle != "" || req.CourseID != "" {
+		sb.WriteString(fmt.Sprintf("Course title: %s\n", fallbackText(req.CourseTitle, "(not provided)")))
+		sb.WriteString(fmt.Sprintf("Course id: %s\n", fallbackText(req.CourseID, "(not provided)")))
+	}
+	if req.UnitTitle != "" || req.UnitID != "" || req.UnitObjective != "" {
+		sb.WriteString(fmt.Sprintf("Unit title: %s\n", fallbackText(req.UnitTitle, "(not provided)")))
+		sb.WriteString(fmt.Sprintf("Unit id: %s\n", fallbackText(req.UnitID, "(not provided)")))
+		sb.WriteString(fmt.Sprintf("Unit objective: %s\n", fallbackText(req.UnitObjective, "(not provided)")))
+	}
+	sb.WriteString(`
+Use course and unit context to keep questions aligned with the active curriculum. Topic remains the primary label, but course title, unit title, and unit objective should shape the scope, terminology, and difficulty.
+
+Return plain text only. Follow the template exactly.
+
+Example:
+TITLE: `)
+	sb.WriteString(req.Topic)
+	sb.WriteString(` Assessment
+INSTRUCTIONS: Answer all questions clearly.
+
+QUESTION_START
+ID: q_1
+TYPE: single_choice
+PROMPT: Which statement best describes `)
+	sb.WriteString(req.Topic)
+	sb.WriteString(`?
+POINTS: 2
+REQUIRED: true
+DIFFICULTY: easy
+OPTIONS: Correct statement | Common misconception | Irrelevant detail | Opposite claim
+ANSWER_KEY: Correct statement
+RUBRIC: Selects the correct option
+MODEL_ANSWER: Correct statement
+QUESTION_END`)
+	return sb.String()
 }
 
 func buildExamRepairPrompt(req GenerateExamContractRequest, raw string, violations []string, parseErr error) string {
 	var sb strings.Builder
-	sb.WriteString("Previous output invalid. Return corrected JSON only.\n")
+	sb.WriteString("Previous output invalid. Rewrite it using the required plain-text template only.\n")
 	sb.WriteString(buildExamPrompt(req))
 	sb.WriteString("\nViolations:\n")
 	if parseErr != nil {
@@ -825,8 +879,197 @@ func buildExamRepairPrompt(req GenerateExamContractRequest, raw string, violatio
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\nPrevious output:\n")
-	sb.WriteString(utils.CleanJSONResponse(raw))
+	sb.WriteString(strings.TrimSpace(raw))
 	return sb.String()
+}
+
+func parseExamTemplate(raw string) (llmExamEnvelope, error) {
+	lines := strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n")
+	var out llmExamEnvelope
+	var current *llmExamQuestion
+
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		upper := strings.ToUpper(line)
+		switch {
+		case strings.HasPrefix(upper, "TITLE:"):
+			out.Title = strings.TrimSpace(line[len("TITLE:"):])
+		case strings.HasPrefix(upper, "INSTRUCTIONS:"):
+			out.Instructions = strings.TrimSpace(line[len("INSTRUCTIONS:"):])
+		case upper == "QUESTION_START" || examQuestionHeaderLine(upper):
+			if current != nil {
+				out.Questions = append(out.Questions, *current)
+			}
+			current = &llmExamQuestion{Required: true, Difficulty: "medium", Metadata: map[string]interface{}{}, UI: map[string]interface{}{}}
+		case upper == "QUESTION_END":
+			if current != nil {
+				out.Questions = append(out.Questions, *current)
+				current = nil
+			}
+		default:
+			if current == nil {
+				continue
+			}
+			key, value, ok := splitExamField(line)
+			if !ok {
+				continue
+			}
+			value = collectExamFieldValue(lines, &i, value)
+			switch key {
+			case "ID":
+				current.ID = value
+			case "TYPE":
+				current.Type = strings.ToLower(strings.TrimSpace(value))
+			case "PROMPT":
+				current.Prompt = value
+			case "POINTS":
+				if n, err := strconv.Atoi(strings.TrimSpace(value)); err == nil {
+					current.Points = n
+				}
+			case "REQUIRED":
+				current.Required = strings.EqualFold(strings.TrimSpace(value), "true")
+			case "DIFFICULTY":
+				current.Difficulty = strings.ToLower(strings.TrimSpace(value))
+			case "OPTIONS":
+				current.Options = splitPipeList(value)
+			case "ANSWER_KEY":
+				current.AnswerKey = parseAnswerKey(strings.ToLower(strings.TrimSpace(current.Type)), value)
+			case "RUBRIC":
+				current.Rubric = splitPipeList(value)
+			case "MODEL_ANSWER":
+				current.ModelAnswer = value
+			}
+		}
+	}
+	if current != nil {
+		out.Questions = append(out.Questions, *current)
+	}
+	if strings.TrimSpace(out.Title) == "" && len(out.Questions) == 0 {
+		return llmExamEnvelope{}, fmt.Errorf("template output missing title/questions")
+	}
+	return out, nil
+}
+
+func examQuestionHeaderLine(line string) bool {
+	if !strings.HasPrefix(line, "QUESTION ") {
+		return false
+	}
+	for _, r := range strings.TrimSpace(strings.TrimPrefix(line, "QUESTION ")) {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func splitExamField(line string) (string, string, bool) {
+	parts := strings.SplitN(line, ":", 2)
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	key := strings.ToUpper(strings.TrimSpace(parts[0]))
+	switch key {
+	case "ID", "TYPE", "PROMPT", "POINTS", "REQUIRED", "DIFFICULTY", "OPTIONS", "ANSWER_KEY", "RUBRIC", "MODEL_ANSWER":
+		return key, strings.TrimSpace(parts[1]), true
+	default:
+		return "", "", false
+	}
+}
+
+func collectExamFieldValue(lines []string, idx *int, initial string) string {
+	var parts []string
+	if strings.TrimSpace(initial) != "" {
+		parts = append(parts, strings.TrimSpace(initial))
+	}
+	for *idx+1 < len(lines) {
+		next := strings.TrimSpace(lines[*idx+1])
+		nextUpper := strings.ToUpper(next)
+		if next == "" {
+			*idx = *idx + 1
+			if len(parts) > 0 {
+				parts = append(parts, "")
+			}
+			continue
+		}
+		if nextUpper == "QUESTION_START" || nextUpper == "QUESTION_END" || examQuestionHeaderLine(nextUpper) {
+			break
+		}
+		if key, _, ok := splitExamField(next); ok && key != "" {
+			break
+		}
+		*idx = *idx + 1
+		parts = append(parts, next)
+	}
+	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+func splitPipeList(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, "|")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseAnswerKey(questionType string, raw string) interface{} {
+	raw = strings.TrimSpace(raw)
+	switch questionType {
+	case "multi_select", "short_text", "long_text", "code":
+		return splitPipeList(raw)
+	case "numeric":
+		out := map[string]interface{}{}
+		for _, part := range strings.Split(raw, ";") {
+			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			key := strings.ToLower(strings.TrimSpace(kv[0]))
+			val := strings.TrimSpace(kv[1])
+			if f, err := strconv.ParseFloat(val, 64); err == nil {
+				out[key] = f
+			}
+		}
+		if len(out) == 0 {
+			if f, err := strconv.ParseFloat(raw, 64); err == nil {
+				return map[string]interface{}{"value": f, "tolerance": 0.0001}
+			}
+		}
+		if _, ok := out["tolerance"]; !ok {
+			out["tolerance"] = 0.0001
+		}
+		return out
+	case "boolean":
+		if strings.EqualFold(raw, "true") {
+			return "true"
+		}
+		if strings.EqualFold(raw, "false") {
+			return "false"
+		}
+		return raw
+	default:
+		return raw
+	}
+}
+
+func rawPrefix(raw string, limit int) string {
+	raw = strings.TrimSpace(raw)
+	if len(raw) <= limit {
+		return raw
+	}
+	return raw[:limit]
 }
 
 func requestIDFromHeader(r *http.Request) string {
@@ -837,11 +1080,24 @@ func requestIDFromHeader(r *http.Request) string {
 	return rid
 }
 
-func stableExamSeed(topic string, count int) int {
+func stableExamSeed(req GenerateExamContractRequest) int {
 	h := fnv.New32a()
-	_, _ = h.Write([]byte(strings.ToLower(strings.TrimSpace(topic))))
-	_, _ = h.Write([]byte(fmt.Sprintf(":%d", count)))
+	_, _ = h.Write([]byte(strings.ToLower(strings.TrimSpace(req.Topic))))
+	_, _ = h.Write([]byte(fmt.Sprintf(":%d", req.QuestionCount)))
+	_, _ = h.Write([]byte(":course:" + strings.ToLower(strings.TrimSpace(req.CourseID))))
+	_, _ = h.Write([]byte(":course-title:" + strings.ToLower(strings.TrimSpace(req.CourseTitle))))
+	_, _ = h.Write([]byte(":unit:" + strings.ToLower(strings.TrimSpace(req.UnitID))))
+	_, _ = h.Write([]byte(":unit-title:" + strings.ToLower(strings.TrimSpace(req.UnitTitle))))
+	_, _ = h.Write([]byte(":objective:" + strings.ToLower(strings.TrimSpace(req.UnitObjective))))
 	return int(h.Sum32() & 0x7fffffff)
+}
+
+func fallbackText(value string, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 func missingRequiredGradingKey(k gradingKey) bool {

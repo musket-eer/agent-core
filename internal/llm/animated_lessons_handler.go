@@ -82,9 +82,10 @@ Rules:
 4) Keep output frontend-interpretable only.
 5) Text and demonstration are separate child regions; never describe overlay/stacking between them.
 6) Choose exactly one primary demo modality for this topic: imageUrl OR sketchPath OR equations OR pedagogicalDiagram.
-7) demoPlan.kind must be one of: NONE, SKETCH_PATH, EQUATION_REVEAL, IMAGE_DRAW, PHYSICS_GRAPH.
+7) demoPlan.kind must be one of: NONE, SKETCH_PATH, EQUATION_REVEAL, IMAGE_DRAW, PHYSICS_GRAPH, PHYSICS_DIAGRAM.
 8) demoPlan.kind must agree with modality fields:
    SKETCH_PATH or PHYSICS_GRAPH -> sketchPath
+   PHYSICS_DIAGRAM -> pedagogicalDiagram
    EQUATION_REVEAL -> equations
    IMAGE_DRAW -> imageUrl
    NONE -> no modality field
@@ -94,10 +95,15 @@ Rules:
 12) scene.animationPlan must contain 1-5 simple steps from allowed effects only.
 13) Do not emit scripts, event handlers, draw calls, or imperative renderer commands.
 14) For pedagogicalDiagram, set kind=PEDAGOGICAL_DIAGRAM and payload.variant in {graph, table, timeline, tree, stack_queue, coordinate_plane, flow_diagram, set_diagram, heatmap, field, shapes, character_scene, chart, chat}.
-15) Optional payload.pattern must be one of: PROGRESSIVE_REVEAL, BUILD_UP_CONSTRUCTION, STEP_EXECUTION, STATE_TRANSITION, DEPENDENCY_PROPAGATION, VALUE_ACCUMULATION, FOCUS_SHIFT, STRUCTURAL_TRANSFORMATION, MORPHING, SIMULATION_LOOP, PARALLEL_COMPARISON, COUNTEREXAMPLE_REVEAL, PATH_TRACING, COLLAPSE_EXPAND, ENERGY_FLOW_SIMULATION, GRAPH_TRAVERSAL, DP_FILL.
-16) If pedagogicalDiagram.payload.variant=shapes, each shapes[].kind must be one of: rect, oval, triangle, diamond.
-17) No markdown, no commentary, no extra keys.
-18) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.`
+15) Physics-rich scenes may use PHYSICS_DIAGRAM for force-directed systems and should prefer pedagogical variants field, coordinate_plane, and flow_diagram when they best match the concept.
+16) Physics parameters may be encoded declaratively in scene.physics.params using keys such as springK, damping, repulsion, anchorK, gravity, restLength, nodeRadius.
+17) Physics primitives may be encoded declaratively in scene.physics.params.primitives using labels such as spring, pendulum, arrow, line, circle, polyline, rect.
+18) Physics motions may be encoded declaratively in scene.physics.params.motions using labels such as pendulum_swing and spring_oscillation.
+19) Prefer physics language such as force-directed expansion, spring relaxation, damped oscillation, pendulum swing, vector field reveal, force arrows, path tracing, energy flow, equilibrium settling, repulsion, clustering, gravity-influenced motion, oscillation decay.
+20) Optional payload.pattern must be one of: PROGRESSIVE_REVEAL, BUILD_UP_CONSTRUCTION, STEP_EXECUTION, STATE_TRANSITION, DEPENDENCY_PROPAGATION, VALUE_ACCUMULATION, FOCUS_SHIFT, STRUCTURAL_TRANSFORMATION, MORPHING, SIMULATION_LOOP, PARALLEL_COMPARISON, COUNTEREXAMPLE_REVEAL, PATH_TRACING, COLLAPSE_EXPAND, ENERGY_FLOW_SIMULATION, GRAPH_TRAVERSAL, DP_FILL.
+21) If pedagogicalDiagram.payload.variant=shapes, each shapes[].kind must be one of: rect, oval, triangle, diamond.
+22) No markdown, no commentary, no extra keys.
+23) Do not mention internal structure words in learner-facing text: knowledge graph, graph, node, edge, prerequisite.`
 
 const defaultAnimatedSlideTextFallbackSystemPrompt = `Return plain text only using the exact template fields requested.
 Do not return JSON.
@@ -122,15 +128,18 @@ var allowedDemoPlanKinds = map[string]struct{}{
 	"EQUATION_REVEAL":     {},
 	"IMAGE_DRAW":          {},
 	"PHYSICS_GRAPH":       {},
+	"PHYSICS_DIAGRAM":     {},
 	"PEDAGOGICAL_DIAGRAM": {},
 }
 
 var allowedDemoPlanEmphasis = map[string]struct{}{
-	"":                 {},
-	"progressive_draw": {},
-	"step_trace":       {},
-	"settle_motion":    {},
-	"reveal":           {},
+	"":                   {},
+	"progressive_draw":   {},
+	"step_trace":         {},
+	"settle_motion":      {},
+	"reveal":             {},
+	"pendulum_swing":     {},
+	"spring_oscillation": {},
 }
 
 var allowedSceneLayoutModes = map[string]struct{}{
@@ -1381,7 +1390,7 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 	if resp.DemoPlan != nil {
 		kind := strings.TrimSpace(resp.DemoPlan.Kind)
 		if _, ok := allowedDemoPlanKinds[kind]; !ok {
-			errs = append(errs, "demoPlan.kind must be one of NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH|PEDAGOGICAL_DIAGRAM")
+			errs = append(errs, "demoPlan.kind must be one of NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH|PHYSICS_DIAGRAM|PEDAGOGICAL_DIAGRAM")
 		}
 		if len(strings.TrimSpace(resp.DemoPlan.Reason)) > slideDemoPlanReasonMaxChars {
 			errs = append(errs, fmt.Sprintf("demoPlan.reason is too long (max %d)", slideDemoPlanReasonMaxChars))
@@ -1390,7 +1399,7 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 			errs = append(errs, "demoPlan.animationEmphasis is too long (max 40)")
 		}
 		if _, ok := allowedDemoPlanEmphasis[strings.TrimSpace(resp.DemoPlan.AnimationEmphasis)]; !ok {
-			errs = append(errs, "demoPlan.animationEmphasis must be one of progressive_draw|step_trace|settle_motion|reveal")
+			errs = append(errs, "demoPlan.animationEmphasis must be one of progressive_draw|step_trace|settle_motion|reveal|pendulum_swing|spring_oscillation")
 		}
 	}
 
@@ -1638,9 +1647,9 @@ func validateDemoPlanConsistency(resp AnimatedSlideContentResponse) []string {
 		if !hasImage {
 			errs = append(errs, "demoPlan.kind IMAGE_DRAW requires imageUrl")
 		}
-	case "PEDAGOGICAL_DIAGRAM":
+	case "PHYSICS_DIAGRAM", "PEDAGOGICAL_DIAGRAM":
 		if !hasPedagogical {
-			errs = append(errs, "demoPlan.kind PEDAGOGICAL_DIAGRAM requires pedagogicalDiagram")
+			errs = append(errs, "demoPlan.kind PHYSICS_DIAGRAM/PEDAGOGICAL_DIAGRAM requires pedagogicalDiagram")
 		}
 	}
 	return errs
@@ -2933,7 +2942,7 @@ func resolveSingleModality(out *AnimatedSlideContentResponse, sanitized *bool) {
 				*sanitized = true
 			}
 			return
-		case "PEDAGOGICAL_DIAGRAM":
+		case "PHYSICS_DIAGRAM", "PEDAGOGICAL_DIAGRAM":
 			if out.ImageURL != "" {
 				out.ImageURL = ""
 				*sanitized = true
@@ -3318,14 +3327,38 @@ Hard constraints:
   - EQUATION_REVEAL
   - IMAGE_DRAW
   - PHYSICS_GRAPH
+  - PHYSICS_DIAGRAM
   - PEDAGOGICAL_DIAGRAM
 - demoPlan.kind must agree with emitted modality fields:
   - SKETCH_PATH -> provide sketchPath
   - EQUATION_REVEAL -> provide equations
   - IMAGE_DRAW -> provide imageUrl
   - PHYSICS_GRAPH -> provide sketchPath
+  - PHYSICS_DIAGRAM -> provide pedagogicalDiagram
   - PEDAGOGICAL_DIAGRAM -> provide pedagogicalDiagram
   - NONE -> provide no modality field
+- Physics-rich scenes may use PHYSICS_DIAGRAM for force-directed systems.
+- Prefer pedagogical variants field, coordinate_plane, and flow_diagram for vector fields, trajectories/oscillation graphs, and energy/signal transfer when they fit the concept.
+- Physics parameters may be encoded declaratively in scene.physics.params using:
+  - springK
+  - damping
+  - repulsion
+  - anchorK
+  - gravity
+  - restLength
+  - nodeRadius
+- Physics primitives may be encoded declaratively in scene.physics.params.primitives using:
+  - spring
+  - pendulum
+  - arrow
+  - line
+  - circle
+  - polyline
+  - rect
+- Physics motions may be encoded declaratively in scene.physics.params.motions using:
+  - pendulum_swing
+  - spring_oscillation
+- Prefer physics language such as force-directed expansion, spring relaxation, damped oscillation, pendulum swing, vector field reveal, force arrows, path tracing, energy flow, equilibrium settling, repulsion, clustering, gravity-influenced motion, oscillation decay.
 - When using pedagogicalDiagram, infer the best single variant for the concept domain:
   - Algorithms: graph, table, tree, stack_queue
   - History: timeline, graph

@@ -1,6 +1,11 @@
 // Here we implement each endpoint to its Deepseek API configuration
 package configs
 
+import (
+	"os"
+	"strings"
+)
+
 // DeepseekConfig holds configuration for a Deepseek endpoint.
 type DeepseekConfig struct {
 	ModelId     string
@@ -488,5 +493,31 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 // GetDeepseekConfig returns the DeepseekConfig for a given endpoint.
 func GetDeepseekConfig(endpoint string) (DeepseekConfig, bool) {
 	cfg, ok := DeepseekEndpointConfigs[endpoint]
+	if ok && (endpoint == "/generate-exams" || endpoint == "/generate-exam") {
+		cfg.ClientName = examGenerationClient()
+		cfg.ModelId = examGenerationModel()
+	}
 	return cfg, ok
+}
+
+func examGenerationClient() string {
+	if v := strings.TrimSpace(os.Getenv("EXAMS_LLM_CLIENT")); v != "" {
+		return v
+	}
+	if strings.TrimSpace(os.Getenv("OPENAI_EXAMS_KEY")) != "" ||
+		strings.TrimSpace(os.Getenv("OPENAI_GENERAL_KEY")) != "" ||
+		strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != "" {
+		return "openai-exams"
+	}
+	return "general"
+}
+
+func examGenerationModel() string {
+	if v := strings.TrimSpace(os.Getenv("OPENAI_EXAMS_MODEL")); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("EXAMS_LLM_MODEL")); v != "" {
+		return v
+	}
+	return "gpt-5-mini"
 }

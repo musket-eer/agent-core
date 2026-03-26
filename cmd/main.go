@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"net/http"
@@ -94,6 +95,9 @@ func registerLLMClients() []string {
 		aliases = append(aliases, alias)
 		log.Printf("✅ Registered LLM client alias: %s", alias)
 	}
+	logClientSource := func(alias, url, key string) {
+		log.Printf("ℹ️ LLM client source alias=%s url=%s key=%s", alias, maskURL(url), maskSecret(key))
+	}
 
 	deepseekBaseURL := firstNonEmpty(
 		os.Getenv("DEEPSEEK_BASE_URL"),
@@ -107,27 +111,31 @@ func registerLLMClients() []string {
 	if strings.TrimSpace(deepseekGeneralKey) != "" && strings.TrimSpace(deepseekBaseURL) != "" {
 		client := clients.NewDeepseekClient(deepseekGeneralKey, deepseekBaseURL)
 		register("general", client)
+		logClientSource("general", deepseekBaseURL, deepseekGeneralKey)
 		register("deepseek-general", client)
+		logClientSource("deepseek-general", deepseekBaseURL, deepseekGeneralKey)
 	}
 	if strings.TrimSpace(deepseekChatKey) != "" && strings.TrimSpace(deepseekChatURL) != "" {
 		client := clients.NewDeepseekClient(deepseekChatKey, deepseekChatURL)
 		register("chat", client)
+		logClientSource("chat", deepseekChatURL, deepseekChatKey)
 		register("deepseek-chat", client)
+		logClientSource("deepseek-chat", deepseekChatURL, deepseekChatKey)
 	}
 
 	// Optional extra Deepseek/OpenAI-compatible aliases.
-	registerDeepseekAlias := func(alias, keyEnv, urlEnv string) {
-		key := os.Getenv(keyEnv)
-		url := firstNonEmpty(os.Getenv(urlEnv), deepseekBaseURL)
+	registerDeepseekAlias := func(alias, key, url string) {
 		if strings.TrimSpace(key) == "" || strings.TrimSpace(url) == "" {
 			return
 		}
 		register(alias, clients.NewDeepseekClient(key, url))
+		logClientSource(alias, url, key)
 	}
-	registerDeepseekAlias("deepseek-reasoner", "DEEPSEEK_REASONER_API_KEY", "DEEPSEEK_REASONER_URL")
-	registerDeepseekAlias("deepseek-fast", "DEEPSEEK_FAST_API_KEY", "DEEPSEEK_FAST_URL")
-	registerDeepseekAlias("openai-general", "OPENAI_API_KEY", "OPENAI_BASE_URL")
-	registerDeepseekAlias("openai-chat", "OPENAI_CHAT_API_KEY", "OPENAI_CHAT_BASE_URL")
+	registerDeepseekAlias("deepseek-reasoner", os.Getenv("DEEPSEEK_REASONER_API_KEY"), firstNonEmpty(os.Getenv("DEEPSEEK_REASONER_URL"), deepseekBaseURL))
+	registerDeepseekAlias("deepseek-fast", os.Getenv("DEEPSEEK_FAST_API_KEY"), firstNonEmpty(os.Getenv("DEEPSEEK_FAST_URL"), deepseekBaseURL))
+	registerDeepseekAlias("openai-general", firstNonEmptyEnv("OPENAI_GENERAL_KEY", "OPENAI_API_KEY"), firstNonEmptyEnv("OPENAI_GENERAL_URL", "OPENAI_BASE_URL"))
+	registerDeepseekAlias("openai-chat", firstNonEmptyEnv("OPENAI_CHAT_KEY", "OPENAI_CHAT_API_KEY"), firstNonEmptyEnv("OPENAI_CHAT_URL", "OPENAI_CHAT_BASE_URL"))
+	registerDeepseekAlias("openai-exams", firstNonEmptyEnv("OPENAI_EXAMS_KEY", "OPENAI_GENERAL_KEY", "OPENAI_API_KEY"), firstNonEmptyEnv("OPENAI_EXAMS_URL", "OPENAI_GENERAL_URL", "OPENAI_BASE_URL"))
 
 	// Gemini aliases are intentionally disabled for now.
 
@@ -139,7 +147,9 @@ func registerLLMClients() []string {
 			log.Printf("⚠️ Skipping bedrock clients: %v", err)
 		} else {
 			register("bedrock-general", bedrockClient)
+			logClientSource("bedrock-general", awsRegion, "aws-config")
 			register("bedrock-chat", bedrockClient)
+			logClientSource("bedrock-chat", awsRegion, "aws-config")
 		}
 	}
 
@@ -183,6 +193,15 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func firstNonEmptyEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func contains(values []string, needle string) bool {
 	for _, v := range values {
 		if v == needle {
@@ -190,4 +209,25 @@ func contains(values []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+func maskSecret(secret string) string {
+	secret = strings.TrimSpace(secret)
+	if secret == "" {
+		return "<empty>"
+	}
+	sum := sha256.Sum256([]byte(secret))
+	short := fmt.Sprintf("%x", sum[:6])
+	if len(secret) <= 8 {
+		return fmt.Sprintf("<len=%d sha256=%s>", len(secret), short)
+	}
+	return fmt.Sprintf("%s...%s <len=%d sha256=%s>", secret[:4], secret[len(secret)-4:], len(secret), short)
+}
+
+func maskURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "<empty>"
+	}
+	return raw
 }

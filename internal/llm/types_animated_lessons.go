@@ -132,9 +132,9 @@ type AnimatedSlideContentResponse struct {
 }
 
 type DemoPlan struct {
-	Kind              string `json:"kind"` // NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH|PEDAGOGICAL_DIAGRAM
+	Kind              string `json:"kind"` // NONE|SKETCH_PATH|EQUATION_REVEAL|IMAGE_DRAW|PHYSICS_GRAPH|PHYSICS_DIAGRAM|PEDAGOGICAL_DIAGRAM
 	Reason            string `json:"reason,omitempty"`
-	AnimationEmphasis string `json:"animationEmphasis,omitempty"` // progressive_draw|step_trace|settle_motion|reveal
+	AnimationEmphasis string `json:"animationEmphasis,omitempty"` // progressive_draw|step_trace|settle_motion|reveal|pendulum_swing|spring_oscillation
 }
 
 type SketchPath struct {
