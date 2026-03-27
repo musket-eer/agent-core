@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"strings"
 	"time"
 
 	"agent-core/internal/cache"
@@ -35,7 +36,7 @@ type ChatAgentRequest struct {
 }
 
 // Generic chat handler for a specific agent role and prompt
-func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
+func chatHandlerWithRole(promptKey string, agentRole string, endpoint string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[chatHandlerWithRole] Incoming request for role: %s, prompt: %s", agentRole, promptKey)
 		if r.Method != http.MethodPost {
@@ -104,7 +105,6 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 				"prompt": fullPrompt,
 			},
 		}
-		endpoint := "/chat"
 		config, ok := configs.GetDeepseekConfig(endpoint)
 		if !ok {
 			log.Printf("[chatHandlerWithRole] No config found for endpoint: %s", endpoint)
@@ -133,11 +133,8 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 		}
 		log.Printf("[chatHandlerWithRole] Received LLM response")
 
-		// Clean up JSON response
-		cleaned := utils.CleanJSONResponse(chatResp)
-
 		finalResponse := map[string]string{
-			"response": cleaned,
+			"response": strings.TrimSpace(chatResp),
 		}
 
 		respBytes, err := json.Marshal(finalResponse)
@@ -155,7 +152,7 @@ func chatHandlerWithRole(promptKey string, agentRole string) http.HandlerFunc {
 }
 
 // Handlers for each chat endpoint
-var ProfessorChatHandler = chatHandlerWithRole("professorChatPrompt", string(ProfessorAgent))
-var LibrarianChatHandler = chatHandlerWithRole("librarianChatPrompt", string(LibrarianAgent))
-var ExaminerChatHandler = chatHandlerWithRole("examinerChatPrompt", string(ExaminerAgent))
-var ChatHandler = chatHandlerWithRole("professorChatPrompt", string(ProfessorAgent))
+var ProfessorChatHandler = chatHandlerWithRole("professorChatPrompt", string(ProfessorAgent), "/professor-chat")
+var LibrarianChatHandler = chatHandlerWithRole("librarianChatPrompt", string(LibrarianAgent), "/librarian-chat")
+var ExaminerChatHandler = chatHandlerWithRole("examinerChatPrompt", string(ExaminerAgent), "/examiner-chat")
+var ChatHandler = chatHandlerWithRole("professorChatPrompt", string(ProfessorAgent), "/chat")

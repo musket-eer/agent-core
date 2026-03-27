@@ -49,7 +49,7 @@ var GeminiEndpointConfigs = map[string]GeminiConfig{
 	"/professor-chat": {
 		ModelId:     "gemini-pro",
 		Temperature: 0.5,
-		MaxTokens:   512,
+		MaxTokens:   1024,
 		ClientName:  "gemini-chat",
 	},
 	"/librarian-chat": {

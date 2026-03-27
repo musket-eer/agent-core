@@ -53,6 +53,12 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   1024,
 		ClientName:  "general",
 	},
+	"/generate-prelesson-ritual": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.4,
+		MaxTokens:   700,
+		ClientName:  "general",
+	},
 	"/generate-exam": {
 		ModelId:     "deepseek-chat",
 		Temperature: 0.2,
@@ -80,7 +86,7 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 	"/professor-chat": {
 		ModelId:     "deepseek-chat",
 		Temperature: 0.5,
-		MaxTokens:   512,
+		MaxTokens:   1024,
 		ClientName:  "chat",
 	},
 	"/librarian-chat": {
