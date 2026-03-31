@@ -128,6 +128,7 @@ type AnimatedSlideContentResponse struct {
 	Equations          []string                `json:"equations,omitempty"`
 	SketchPath         *SketchPath             `json:"sketchPath,omitempty"`
 	PedagogicalDiagram *PedagogicalDiagramNode `json:"pedagogicalDiagram,omitempty"`
+	Canvas             *CanvasNodeSpec         `json:"canvas,omitempty"`
 	Scene              *SceneSpec              `json:"scene,omitempty"`
 }
 
@@ -314,13 +315,13 @@ type DiagramStackQueue struct {
 }
 
 type DiagramCoordinatePlane struct {
-	Points []DiagramGraphNode         `json:"points"`
-	Curves []DiagramCoordinateCurve   `json:"curves"`
+	Points []DiagramGraphNode       `json:"points"`
+	Curves []DiagramCoordinateCurve `json:"curves"`
 }
 
 type DiagramCoordinateCurve struct {
-	ID     string                 `json:"id"`
-	Points []DiagramCoordinatePt  `json:"points"`
+	ID     string                `json:"id"`
+	Points []DiagramCoordinatePt `json:"points"`
 }
 
 type DiagramCoordinatePt struct {
@@ -391,6 +392,127 @@ type DiagramMessage struct {
 	SpeakerID string  `json:"speakerId"`
 	Text      string  `json:"text"`
 	AtSec     float64 `json:"atSec"`
+}
+
+// CanvasArtifactRendererKind mirrors the low-level registered artifact renderers
+// in the frontend canvas engine artifact registry.
+type CanvasArtifactRendererKind string
+
+const (
+	CanvasArtifactRendererChalkTextBlock CanvasArtifactRendererKind = "chalkTextBlock"
+	CanvasArtifactRendererPrimitive2D    CanvasArtifactRendererKind = "primitive2d"
+)
+
+// Primitive2DKind represents the supported primitive2d renderer shapes.
+type Primitive2DKind string
+
+const (
+	Primitive2DCircle   Primitive2DKind = "circle"
+	Primitive2DLine     Primitive2DKind = "line"
+	Primitive2DArrow    Primitive2DKind = "arrow"
+	Primitive2DRect     Primitive2DKind = "rect"
+	Primitive2DPolyline Primitive2DKind = "polyline"
+	Primitive2DSpring   Primitive2DKind = "spring"
+	Primitive2DPendulum Primitive2DKind = "pendulum"
+)
+
+// CanvasArtifactAnimationKind mirrors the low-level registered artifact animations
+// in the frontend canvas engine artifact registry.
+type CanvasArtifactAnimationKind string
+
+const (
+	CanvasArtifactAnimationTextTimeline CanvasArtifactAnimationKind = "textTimeline"
+	CanvasArtifactAnimationKinematics2D CanvasArtifactAnimationKind = "kinematics2d"
+)
+
+// Kinematics2DMotionKind represents supported motions in the kinematics2d animator.
+type Kinematics2DMotionKind string
+
+const (
+	Kinematics2DFreeFall          Kinematics2DMotionKind = "free_fall"
+	Kinematics2DBounceBall        Kinematics2DMotionKind = "bounce_ball"
+	Kinematics2DLightPulse        Kinematics2DMotionKind = "light_pulse"
+	Kinematics2DWavefrontExpand   Kinematics2DMotionKind = "wavefront_expand"
+	Kinematics2DPendulumSwing     Kinematics2DMotionKind = "pendulum_swing"
+	Kinematics2DSpringOscillation Kinematics2DMotionKind = "spring_oscillation"
+)
+
+// CanvasLessonNodeKind mirrors the higher-level lesson node types registered in
+// the frontend canvas engine runtime.
+type CanvasLessonNodeKind string
+
+const (
+	CanvasLessonNodeText               CanvasLessonNodeKind = "TEXT"
+	CanvasLessonNodeDivider            CanvasLessonNodeKind = "DIVIDER"
+	CanvasLessonNodeTableFill          CanvasLessonNodeKind = "TABLE_FILL"
+	CanvasLessonNodeDiagramStroke      CanvasLessonNodeKind = "DIAGRAM_STROKE"
+	CanvasLessonNodeMultiRegion        CanvasLessonNodeKind = "MULTI_REGION"
+	CanvasLessonNodeMultiColumn        CanvasLessonNodeKind = "MULTI_COLUMN"
+	CanvasLessonNodePhysicsDiagram     CanvasLessonNodeKind = "PHYSICS_DIAGRAM"
+	CanvasLessonNodePedagogicalDiagram CanvasLessonNodeKind = "PEDAGOGICAL_DIAGRAM"
+	CanvasLessonNodeRegionCompose      CanvasLessonNodeKind = "REGION_COMPOSE"
+	CanvasLessonNodeImageDraw          CanvasLessonNodeKind = "IMAGE_DRAW"
+	CanvasLessonNodeSketchPath         CanvasLessonNodeKind = "SKETCH_PATH"
+	CanvasLessonNodeEquation           CanvasLessonNodeKind = "EQUATION"
+	CanvasLessonNodeBoxedDemo          CanvasLessonNodeKind = "BOXED_DEMO"
+)
+
+// CanvasArtifactSpec provides a backend-side schema for low-level canvas artifacts.
+type CanvasArtifactSpec struct {
+	Renderer  *CanvasRendererSpec  `json:"renderer,omitempty"`
+	Animation *CanvasAnimationSpec `json:"animation,omitempty"`
+}
+
+type CanvasNodeSpec struct {
+	Kind      CanvasLessonNodeKind `json:"kind"`
+	Artifacts []CanvasArtifactSpec `json:"artifacts,omitempty"`
+}
+
+type CanvasRendererSpec struct {
+	Kind        CanvasArtifactRendererKind `json:"kind"`
+	ChalkText   *ChalkTextBlockSpec        `json:"chalkText,omitempty"`
+	Primitive2D *Primitive2DSpec           `json:"primitive2d,omitempty"`
+}
+
+type ChalkTextBlockSpec struct {
+	Text      string   `json:"text,omitempty"`
+	Lines     []string `json:"lines,omitempty"`
+	Highlight []int    `json:"highlight,omitempty"`
+}
+
+type Primitive2DSpec struct {
+	Kind       Primitive2DKind        `json:"kind"`
+	Label      string                 `json:"label,omitempty"`
+	Style      map[string]interface{} `json:"style,omitempty"`
+	Points     []DiagramCoordinatePt  `json:"points,omitempty"`
+	Anchor     *DiagramCoordinatePt   `json:"anchor,omitempty"`
+	From       *DiagramCoordinatePt   `json:"from,omitempty"`
+	To         *DiagramCoordinatePt   `json:"to,omitempty"`
+	Center     *DiagramCoordinatePt   `json:"center,omitempty"`
+	RadiusK    float64                `json:"radiusK,omitempty"`
+	WidthK     float64                `json:"widthK,omitempty"`
+	HeightK    float64                `json:"heightK,omitempty"`
+	AmplitudeK float64                `json:"amplitudeK,omitempty"`
+	LengthK    float64                `json:"lengthK,omitempty"`
+}
+
+type CanvasAnimationSpec struct {
+	Kind         CanvasArtifactAnimationKind `json:"kind"`
+	TextTimeline *TextTimelineSpec           `json:"textTimeline,omitempty"`
+	Kinematics2D *Kinematics2DSpec           `json:"kinematics2d,omitempty"`
+}
+
+type TextTimelineSpec struct {
+	Mode        string   `json:"mode,omitempty"`
+	Steps       []string `json:"steps,omitempty"`
+	RevealOrder []int    `json:"revealOrder,omitempty"`
+}
+
+type Kinematics2DSpec struct {
+	Motion      Kinematics2DMotionKind `json:"motion"`
+	DurationSec float64                `json:"durationSec,omitempty"`
+	Loop        bool                   `json:"loop,omitempty"`
+	Params      map[string]interface{} `json:"params,omitempty"`
 }
 
 type AnimatedTreeSlideResponse struct {

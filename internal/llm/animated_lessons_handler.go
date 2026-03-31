@@ -189,24 +189,24 @@ var allowedPedagogicalVariants = map[string]struct{}{
 }
 
 var allowedPedagogicalPatterns = map[string]struct{}{
-	"":                         {},
-	"PROGRESSIVE_REVEAL":       {},
-	"BUILD_UP_CONSTRUCTION":    {},
-	"STEP_EXECUTION":           {},
-	"STATE_TRANSITION":         {},
-	"DEPENDENCY_PROPAGATION":   {},
-	"VALUE_ACCUMULATION":       {},
-	"FOCUS_SHIFT":              {},
+	"":                          {},
+	"PROGRESSIVE_REVEAL":        {},
+	"BUILD_UP_CONSTRUCTION":     {},
+	"STEP_EXECUTION":            {},
+	"STATE_TRANSITION":          {},
+	"DEPENDENCY_PROPAGATION":    {},
+	"VALUE_ACCUMULATION":        {},
+	"FOCUS_SHIFT":               {},
 	"STRUCTURAL_TRANSFORMATION": {},
-	"MORPHING":                 {},
-	"SIMULATION_LOOP":          {},
-	"PARALLEL_COMPARISON":      {},
-	"COUNTEREXAMPLE_REVEAL":    {},
-	"PATH_TRACING":             {},
-	"COLLAPSE_EXPAND":          {},
-	"ENERGY_FLOW_SIMULATION":   {},
-	"GRAPH_TRAVERSAL":          {},
-	"DP_FILL":                  {},
+	"MORPHING":                  {},
+	"SIMULATION_LOOP":           {},
+	"PARALLEL_COMPARISON":       {},
+	"COUNTEREXAMPLE_REVEAL":     {},
+	"PATH_TRACING":              {},
+	"COLLAPSE_EXPAND":           {},
+	"ENERGY_FLOW_SIMULATION":    {},
+	"GRAPH_TRAVERSAL":           {},
+	"DP_FILL":                   {},
 }
 
 var allowedShapeKinds = map[string]struct{}{
@@ -234,6 +234,51 @@ var allowedCharacterPoses = map[string]struct{}{
 var allowedChartTypes = map[string]struct{}{
 	"bar":  {},
 	"line": {},
+}
+
+var allowedCanvasLessonNodeKinds = map[string]struct{}{
+	"TEXT":                {},
+	"DIVIDER":             {},
+	"TABLE_FILL":          {},
+	"DIAGRAM_STROKE":      {},
+	"MULTI_REGION":        {},
+	"MULTI_COLUMN":        {},
+	"PHYSICS_DIAGRAM":     {},
+	"PEDAGOGICAL_DIAGRAM": {},
+	"REGION_COMPOSE":      {},
+	"IMAGE_DRAW":          {},
+	"SKETCH_PATH":         {},
+	"EQUATION":            {},
+	"BOXED_DEMO":          {},
+}
+
+var allowedCanvasArtifactRendererKinds = map[string]struct{}{
+	"chalkTextBlock": {},
+	"primitive2d":    {},
+}
+
+var allowedPrimitive2DKinds = map[string]struct{}{
+	"circle":   {},
+	"line":     {},
+	"arrow":    {},
+	"rect":     {},
+	"polyline": {},
+	"spring":   {},
+	"pendulum": {},
+}
+
+var allowedCanvasArtifactAnimationKinds = map[string]struct{}{
+	"textTimeline": {},
+	"kinematics2d": {},
+}
+
+var allowedKinematics2DMotionKinds = map[string]struct{}{
+	"free_fall":          {},
+	"bounce_ball":        {},
+	"light_pulse":        {},
+	"wavefront_expand":   {},
+	"pendulum_swing":     {},
+	"spring_oscillation": {},
 }
 
 type animatedAPIError struct {
@@ -1409,6 +1454,9 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 	if resp.PedagogicalDiagram != nil {
 		errs = append(errs, validatePedagogicalDiagram(resp.PedagogicalDiagram)...)
 	}
+	if resp.Canvas != nil {
+		errs = append(errs, validateCanvasNode(resp.Canvas)...)
+	}
 	if policy.RequireScene && resp.Scene == nil {
 		errs = append(errs, "scene is required")
 	}
@@ -1419,6 +1467,78 @@ func validateAnimatedSlideContentResponse(resp AnimatedSlideContentResponse, exp
 
 	if impliesOverlayBehavior(resp.Explanation) || impliesOverlayBehavior(resp.BridgeFromPrevious) || impliesOverlayBehavior(resp.BridgeToNext) {
 		errs = append(errs, "text must not imply overlay/stacking between text and demo regions")
+	}
+
+	return errs
+}
+
+func validateCanvasNode(node *CanvasNodeSpec) []string {
+	var errs []string
+	if node == nil {
+		return errs
+	}
+
+	kind := strings.TrimSpace(string(node.Kind))
+	if _, ok := allowedCanvasLessonNodeKinds[kind]; !ok {
+		errs = append(errs, "canvas.kind invalid")
+	}
+	if len(node.Artifacts) > 16 {
+		errs = append(errs, "canvas.artifacts must contain 0-16 items")
+	}
+
+	for i, artifact := range node.Artifacts {
+		if artifact.Renderer == nil && artifact.Animation == nil {
+			errs = append(errs, fmt.Sprintf("canvas.artifacts[%d] must include renderer or animation", i))
+		}
+
+		if artifact.Renderer != nil {
+			rendererKind := strings.TrimSpace(string(artifact.Renderer.Kind))
+			if _, ok := allowedCanvasArtifactRendererKinds[rendererKind]; !ok {
+				errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].renderer.kind invalid", i))
+			}
+
+			switch rendererKind {
+			case "chalkTextBlock":
+				if artifact.Renderer.ChalkText == nil {
+					errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].renderer.chalkText is required for chalkTextBlock", i))
+				}
+			case "primitive2d":
+				if artifact.Renderer.Primitive2D == nil {
+					errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].renderer.primitive2d is required for primitive2d", i))
+				} else {
+					primitiveKind := strings.TrimSpace(string(artifact.Renderer.Primitive2D.Kind))
+					if _, ok := allowedPrimitive2DKinds[primitiveKind]; !ok {
+						errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].renderer.primitive2d.kind invalid", i))
+					}
+				}
+			}
+		}
+
+		if artifact.Animation != nil {
+			animationKind := strings.TrimSpace(string(artifact.Animation.Kind))
+			if _, ok := allowedCanvasArtifactAnimationKinds[animationKind]; !ok {
+				errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].animation.kind invalid", i))
+			}
+
+			switch animationKind {
+			case "textTimeline":
+				if artifact.Animation.TextTimeline == nil {
+					errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].animation.textTimeline is required for textTimeline", i))
+				}
+			case "kinematics2d":
+				if artifact.Animation.Kinematics2D == nil {
+					errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].animation.kinematics2d is required for kinematics2d", i))
+				} else {
+					motionKind := strings.TrimSpace(string(artifact.Animation.Kinematics2D.Motion))
+					if _, ok := allowedKinematics2DMotionKinds[motionKind]; !ok {
+						errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].animation.kinematics2d.motion invalid", i))
+					}
+					if artifact.Animation.Kinematics2D.DurationSec < 0 || artifact.Animation.Kinematics2D.DurationSec > 60 {
+						errs = append(errs, fmt.Sprintf("canvas.artifacts[%d].animation.kinematics2d.durationSec must be in [0,60]", i))
+					}
+				}
+			}
+		}
 	}
 
 	return errs
@@ -1906,6 +2026,7 @@ func sanitizeAnimatedSlideWhitelist(raw map[string]interface{}) (AnimatedSlideCo
 		"equations":          {},
 		"sketchPath":         {},
 		"pedagogicalDiagram": {},
+		"canvas":             {},
 		"scene":              {},
 	}
 	for k := range raw {
@@ -1925,8 +2046,163 @@ func sanitizeAnimatedSlideWhitelist(raw map[string]interface{}) (AnimatedSlideCo
 	out.Equations = asStringSlice(raw["equations"])
 	out.SketchPath = sanitizeSketchPath(raw["sketchPath"], &sanitized)
 	out.PedagogicalDiagram = sanitizePedagogicalDiagram(raw["pedagogicalDiagram"], &sanitized)
+	out.Canvas = sanitizeCanvasNode(raw["canvas"], &sanitized)
 	out.Scene = sanitizeScene(raw["scene"], &sanitized)
 	return out, sanitized
+}
+
+func sanitizeCanvasNode(v interface{}, sanitized *bool) *CanvasNodeSpec {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+
+	allowedKeys := map[string]struct{}{
+		"kind":      {},
+		"artifacts": {},
+	}
+	for k := range m {
+		if _, ok := allowedKeys[k]; !ok {
+			*sanitized = true
+		}
+	}
+
+	out := &CanvasNodeSpec{
+		Kind: CanvasLessonNodeKind(asString(m["kind"])),
+	}
+
+	if rawArtifacts, ok := m["artifacts"].([]interface{}); ok {
+		out.Artifacts = make([]CanvasArtifactSpec, 0, len(rawArtifacts))
+		for _, item := range rawArtifacts {
+			artifactMap, ok := item.(map[string]interface{})
+			if !ok {
+				*sanitized = true
+				continue
+			}
+			out.Artifacts = append(out.Artifacts, CanvasArtifactSpec{
+				Renderer:  sanitizeCanvasRenderer(artifactMap["renderer"], sanitized),
+				Animation: sanitizeCanvasAnimation(artifactMap["animation"], sanitized),
+			})
+		}
+	}
+
+	return out
+}
+
+func sanitizeCanvasRenderer(v interface{}, sanitized *bool) *CanvasRendererSpec {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+
+	allowedKeys := map[string]struct{}{
+		"kind":        {},
+		"chalkText":   {},
+		"primitive2d": {},
+	}
+	for k := range m {
+		if _, ok := allowedKeys[k]; !ok {
+			*sanitized = true
+		}
+	}
+
+	renderer := &CanvasRendererSpec{
+		Kind: CanvasArtifactRendererKind(asString(m["kind"])),
+	}
+
+	if chalkMap, ok := m["chalkText"].(map[string]interface{}); ok {
+		renderer.ChalkText = &ChalkTextBlockSpec{
+			Text:      asString(chalkMap["text"]),
+			Lines:     asStringSlice(chalkMap["lines"]),
+			Highlight: asIntSlice(chalkMap["highlight"], sanitized),
+		}
+	}
+	if primitiveMap, ok := m["primitive2d"].(map[string]interface{}); ok {
+		renderer.Primitive2D = sanitizePrimitive2D(primitiveMap, sanitized)
+	}
+
+	return renderer
+}
+
+func sanitizePrimitive2D(m map[string]interface{}, sanitized *bool) *Primitive2DSpec {
+	allowedKeys := map[string]struct{}{
+		"kind":       {},
+		"label":      {},
+		"style":      {},
+		"points":     {},
+		"anchor":     {},
+		"from":       {},
+		"to":         {},
+		"center":     {},
+		"radiusK":    {},
+		"widthK":     {},
+		"heightK":    {},
+		"amplitudeK": {},
+		"lengthK":    {},
+	}
+	for k := range m {
+		if _, ok := allowedKeys[k]; !ok {
+			*sanitized = true
+		}
+	}
+
+	spec := &Primitive2DSpec{
+		Kind:       Primitive2DKind(asString(m["kind"])),
+		Label:      asString(m["label"]),
+		Style:      asAnyMap(m["style"]),
+		Points:     asCoordinatePoints(m["points"], sanitized),
+		Anchor:     asCoordinatePoint(m["anchor"]),
+		From:       asCoordinatePoint(m["from"]),
+		To:         asCoordinatePoint(m["to"]),
+		Center:     asCoordinatePoint(m["center"]),
+		RadiusK:    asFloat(m["radiusK"]),
+		WidthK:     asFloat(m["widthK"]),
+		HeightK:    asFloat(m["heightK"]),
+		AmplitudeK: asFloat(m["amplitudeK"]),
+		LengthK:    asFloat(m["lengthK"]),
+	}
+
+	return spec
+}
+
+func sanitizeCanvasAnimation(v interface{}, sanitized *bool) *CanvasAnimationSpec {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+
+	allowedKeys := map[string]struct{}{
+		"kind":         {},
+		"textTimeline": {},
+		"kinematics2d": {},
+	}
+	for k := range m {
+		if _, ok := allowedKeys[k]; !ok {
+			*sanitized = true
+		}
+	}
+
+	animation := &CanvasAnimationSpec{
+		Kind: CanvasArtifactAnimationKind(asString(m["kind"])),
+	}
+
+	if textTimelineMap, ok := m["textTimeline"].(map[string]interface{}); ok {
+		animation.TextTimeline = &TextTimelineSpec{
+			Mode:        asString(textTimelineMap["mode"]),
+			Steps:       asStringSlice(textTimelineMap["steps"]),
+			RevealOrder: asIntSlice(textTimelineMap["revealOrder"], sanitized),
+		}
+	}
+	if kinematicsMap, ok := m["kinematics2d"].(map[string]interface{}); ok {
+		animation.Kinematics2D = &Kinematics2DSpec{
+			Motion:      Kinematics2DMotionKind(asString(kinematicsMap["motion"])),
+			DurationSec: asFloat(kinematicsMap["durationSec"]),
+			Loop:        asBool(kinematicsMap["loop"]),
+			Params:      asAnyMap(kinematicsMap["params"]),
+		}
+	}
+
+	return animation
 }
 
 func sanitizePedagogicalDiagram(v interface{}, sanitized *bool) *PedagogicalDiagramNode {
@@ -1962,25 +2238,25 @@ func sanitizePedagogicalDiagram(v interface{}, sanitized *bool) *PedagogicalDiag
 
 func sanitizePedagogicalPayload(m map[string]interface{}, sanitized *bool) PedagogicalDiagramPayload {
 	allowedKeys := map[string]struct{}{
-		"variant":     {},
-		"pattern":     {},
-		"title":       {},
-		"subtitle":    {},
-		"durationSec": {},
-		"shapes":      {},
-		"characters":  {},
-		"table":       {},
-		"chart":       {},
-		"graph":       {},
-		"timeline":    {},
-		"tree":        {},
-		"stackQueue":  {},
+		"variant":         {},
+		"pattern":         {},
+		"title":           {},
+		"subtitle":        {},
+		"durationSec":     {},
+		"shapes":          {},
+		"characters":      {},
+		"table":           {},
+		"chart":           {},
+		"graph":           {},
+		"timeline":        {},
+		"tree":            {},
+		"stackQueue":      {},
 		"coordinatePlane": {},
-		"flowDiagram": {},
-		"setDiagram":  {},
-		"heatmap":     {},
-		"field":       {},
-		"chat":        {},
+		"flowDiagram":     {},
+		"setDiagram":      {},
+		"heatmap":         {},
+		"field":           {},
+		"chat":            {},
 	}
 	for k := range m {
 		if _, ok := allowedKeys[k]; !ok {
@@ -2610,9 +2886,79 @@ func normalizeAndBoundDetail(out *AnimatedSlideContentResponse, sanitized *bool)
 	if out.PedagogicalDiagram != nil {
 		normalizePedagogicalDiagram(out.PedagogicalDiagram, sanitized)
 	}
+	if out.Canvas != nil {
+		normalizeCanvasNode(out.Canvas, sanitized)
+	}
 
 	if out.Scene != nil {
 		normalizeScene(out.Scene, sanitized)
+	}
+}
+
+func normalizeCanvasNode(node *CanvasNodeSpec, sanitized *bool) {
+	if node == nil {
+		return
+	}
+
+	node.Kind = CanvasLessonNodeKind(strings.TrimSpace(strings.ToUpper(string(node.Kind))))
+	if len(node.Artifacts) > 16 {
+		node.Artifacts = node.Artifacts[:16]
+		*sanitized = true
+	}
+
+	for i := range node.Artifacts {
+		artifact := &node.Artifacts[i]
+		if artifact.Renderer != nil {
+			artifact.Renderer.Kind = CanvasArtifactRendererKind(strings.TrimSpace(string(artifact.Renderer.Kind)))
+			if artifact.Renderer.ChalkText != nil {
+				artifact.Renderer.ChalkText.Text = truncate(strings.TrimSpace(artifact.Renderer.ChalkText.Text), 400, sanitized)
+				artifact.Renderer.ChalkText.Lines = boundStringArray(artifact.Renderer.ChalkText.Lines, 24, 160, sanitized)
+				artifact.Renderer.ChalkText.Highlight = boundIntArray(artifact.Renderer.ChalkText.Highlight, 24, sanitized)
+			}
+			if artifact.Renderer.Primitive2D != nil {
+				primitive := artifact.Renderer.Primitive2D
+				primitive.Kind = Primitive2DKind(strings.TrimSpace(strings.ToLower(string(primitive.Kind))))
+				primitive.Label = truncate(strings.TrimSpace(primitive.Label), 120, sanitized)
+				primitive.Points = normalizeCoordinatePoints(primitive.Points)
+				primitive.Anchor = normalizeCoordinatePoint(primitive.Anchor)
+				primitive.From = normalizeCoordinatePoint(primitive.From)
+				primitive.To = normalizeCoordinatePoint(primitive.To)
+				primitive.Center = normalizeCoordinatePoint(primitive.Center)
+				primitive.RadiusK = clamp01(primitive.RadiusK)
+				primitive.WidthK = clamp01(primitive.WidthK)
+				primitive.HeightK = clamp01(primitive.HeightK)
+				primitive.AmplitudeK = clamp01(primitive.AmplitudeK)
+				primitive.LengthK = clamp01(primitive.LengthK)
+				if primitive.Style == nil {
+					primitive.Style = map[string]interface{}{}
+					*sanitized = true
+				}
+			}
+		}
+
+		if artifact.Animation != nil {
+			artifact.Animation.Kind = CanvasArtifactAnimationKind(strings.TrimSpace(string(artifact.Animation.Kind)))
+			if artifact.Animation.TextTimeline != nil {
+				artifact.Animation.TextTimeline.Mode = truncate(strings.TrimSpace(artifact.Animation.TextTimeline.Mode), 40, sanitized)
+				artifact.Animation.TextTimeline.Steps = boundStringArray(artifact.Animation.TextTimeline.Steps, 24, 160, sanitized)
+				artifact.Animation.TextTimeline.RevealOrder = boundIntArray(artifact.Animation.TextTimeline.RevealOrder, 32, sanitized)
+			}
+			if artifact.Animation.Kinematics2D != nil {
+				artifact.Animation.Kinematics2D.Motion = Kinematics2DMotionKind(strings.TrimSpace(strings.ToLower(string(artifact.Animation.Kinematics2D.Motion))))
+				if artifact.Animation.Kinematics2D.DurationSec < 0 {
+					artifact.Animation.Kinematics2D.DurationSec = 0
+					*sanitized = true
+				}
+				if artifact.Animation.Kinematics2D.DurationSec > 60 {
+					artifact.Animation.Kinematics2D.DurationSec = 60
+					*sanitized = true
+				}
+				if artifact.Animation.Kinematics2D.Params == nil {
+					artifact.Animation.Kinematics2D.Params = map[string]interface{}{}
+					*sanitized = true
+				}
+			}
+		}
 	}
 }
 
@@ -3042,6 +3388,27 @@ func asStringSlice(v interface{}) []string {
 	return out
 }
 
+func asIntSlice(v interface{}, sanitized *bool) []int {
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]int, 0, len(raw))
+	for _, item := range raw {
+		switch n := item.(type) {
+		case float64:
+			out = append(out, int(n))
+		case int:
+			out = append(out, n)
+		default:
+			if sanitized != nil {
+				*sanitized = true
+			}
+		}
+	}
+	return out
+}
+
 func asFloat(v interface{}) float64 {
 	switch n := v.(type) {
 	case float64:
@@ -3087,6 +3454,36 @@ func asAnyMap(v interface{}) map[string]interface{} {
 	return m
 }
 
+func asCoordinatePoint(v interface{}) *DiagramCoordinatePt {
+	m, ok := v.(map[string]interface{})
+	if !ok || m == nil {
+		return nil
+	}
+	return &DiagramCoordinatePt{
+		XK: clamp01(asFloat(m["xk"])),
+		YK: clamp01(asFloat(m["yk"])),
+	}
+}
+
+func asCoordinatePoints(v interface{}, sanitized *bool) []DiagramCoordinatePt {
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]DiagramCoordinatePt, 0, len(raw))
+	for _, item := range raw {
+		pt := asCoordinatePoint(item)
+		if pt == nil {
+			if sanitized != nil {
+				*sanitized = true
+			}
+			continue
+		}
+		out = append(out, *pt)
+	}
+	return out
+}
+
 func getBoolOrDefault(m map[string]interface{}, key string, fallback bool) bool {
 	v, exists := m[key]
 	if !exists {
@@ -3106,6 +3503,33 @@ func clamp01(v float64) float64 {
 		return 1
 	}
 	return v
+}
+
+func normalizeCoordinatePoint(pt *DiagramCoordinatePt) *DiagramCoordinatePt {
+	if pt == nil {
+		return nil
+	}
+	pt.XK = clamp01(pt.XK)
+	pt.YK = clamp01(pt.YK)
+	return pt
+}
+
+func normalizeCoordinatePoints(points []DiagramCoordinatePt) []DiagramCoordinatePt {
+	for i := range points {
+		points[i].XK = clamp01(points[i].XK)
+		points[i].YK = clamp01(points[i].YK)
+	}
+	return points
+}
+
+func boundIntArray(values []int, maxItems int, sanitized *bool) []int {
+	if len(values) > maxItems {
+		values = values[:maxItems]
+		if sanitized != nil {
+			*sanitized = true
+		}
+	}
+	return values
 }
 
 func impliesOverlayBehavior(text string) bool {

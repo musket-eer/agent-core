@@ -40,6 +40,18 @@ var GeminiEndpointConfigs = map[string]GeminiConfig{
 		MaxTokens:   1024,
 		ClientName:  "gemini-general",
 	},
+	"/api/prompts/generate-project-prompt": {
+		ModelId:     "gemini-pro",
+		Temperature: 0.4,
+		MaxTokens:   2048,
+		ClientName:  "gemini-general",
+	},
+	"/api/prompts/generate": {
+		ModelId:     "gemini-pro",
+		Temperature: 0.4,
+		MaxTokens:   2048,
+		ClientName:  "gemini-general",
+	},
 	"/chat": {
 		ModelId:     "gemini-pro",
 		Temperature: 0.9,

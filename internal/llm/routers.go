@@ -14,8 +14,14 @@ func logRequest(endpoint string, handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[logRequest] Incoming request: %s %s", r.Method, endpoint)
 		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		origin := r.Header.Get("Origin")
+		switch origin {
+		case "http://localhost:3000":
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		default:
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -45,6 +51,7 @@ func RegisterHandlers() http.Handler {
 	mux.HandleFunc("/generate-lesson-index-plan", logRequest("/generate-lesson-index-plan", GenerateLessonIndexPlanHandler))
 	mux.HandleFunc("/generate-notes", logRequest("/generate-notes", GenerateNotesHandler))
 	mux.HandleFunc("/generate-exams", logRequest("/generate-exams", GenerateExamsHandler))
+	mux.HandleFunc("/generate-prelesson-ritual", logRequest("/generate-prelesson-ritual", GeneratePrelessonRitualHandler))
 	mux.HandleFunc("/generate-resources", logRequest("/generate-resources", GenerateResourcesHandler))
 	mux.HandleFunc("/chat", logRequest("/chat", ChatHandler))
 	mux.HandleFunc("/professor-chat", logRequest("/professor-chat", ProfessorChatHandler))
@@ -56,6 +63,8 @@ func RegisterHandlers() http.Handler {
 
 	// Project Generation endpoint (stateless, aligned with frontend)
 	mux.HandleFunc("/generate-project", logRequest("/generate-project", GenerateProjectHandler))
+	mux.HandleFunc("/api/prompts/generate", logRequest("/api/prompts/generate", GenerateProjectPromptHandler))
+	mux.HandleFunc("/api/prompts/generate-project-prompt", logRequest("/api/prompts/generate-project-prompt", GenerateProjectPromptHandler))
 
 	// Generate Tasks endpoint (for milestone task generation)
 	mux.HandleFunc("/generate-tasks", logRequest("/generate-tasks", GenerateTasksHandler))

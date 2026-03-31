@@ -115,6 +115,18 @@ var DeepseekEndpointConfigs = map[string]DeepseekConfig{
 		MaxTokens:   4096,
 		ClientName:  "general",
 	},
+	"/api/prompts/generate-project-prompt": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.4,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
+	"/api/prompts/generate": {
+		ModelId:     "deepseek-chat",
+		Temperature: 0.4,
+		MaxTokens:   2048,
+		ClientName:  "general",
+	},
 	// Generate Tasks endpoint (for milestone task generation)
 	"/generate-tasks": {
 		ModelId:     "deepseek-chat",
