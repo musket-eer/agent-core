@@ -69,13 +69,14 @@ type CourseGraphUnit struct {
 }
 
 type CourseGraphNode struct {
-	ID            string   `json:"id"`
-	Title         string   `json:"title"`
-	Summary       string   `json:"summary"`
-	KeyPoints     []string `json:"keyPoints"`
-	Examples      []string `json:"examples"`
-	Prerequisites []string `json:"prerequisites"`
-	Order         int      `json:"order"`
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	Summary        string   `json:"summary"`
+	KeyPoints      []string `json:"keyPoints"`
+	Examples       []string `json:"examples"`
+	Prerequisites  []string `json:"prerequisites"`
+	Order          int      `json:"order"`
+	DeepDivePrompt string   `json:"deepDivePrompt,omitempty"`
 }
 
 type CourseGraphMetadata struct {

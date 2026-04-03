@@ -2,6 +2,7 @@ package llm
 
 import (
 	"agent-core/internal/llm/utils"
+	"bytes"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -14,8 +15,39 @@ import (
 func CourseCreationChatHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[CourseCreationChatHandler] Incoming request: %s %s", r.Method, r.URL.Path)
 
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	bodyBytes, err := readRequestBody(r)
+	if err != nil {
+		log.Printf("[CourseCreationChatHandler] Failed to read request body: %v", err)
+		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Backward-compatible escape hatch:
+	// if a caller sends the newer one-shot payload to the legacy chat route,
+	// treat it as immediate course generation instead of forcing dialogue.
+	var oneShotReq OneShotCourseCreationRequest
+	if err := json.Unmarshal(bodyBytes, &oneShotReq); err == nil && strings.TrimSpace(oneShotReq.Prompt) != "" {
+		course, genErr := generateOneShotCourse(r.Context(), oneShotReq)
+		if genErr != nil {
+			log.Printf("[CourseCreationChatHandler] Failed one-shot generation via chat route: %v", genErr)
+			utils.WriteJSONError(w, "Failed to generate course", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(OneShotCourseCreationResponse{Course: course}); err != nil {
+			log.Printf("[CourseCreationChatHandler] Failed to encode one-shot response: %v", err)
+		}
+		return
+	}
+
 	var req CourseCreationChatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(&req); err != nil {
 		log.Printf("[CourseCreationChatHandler] Failed to decode request: %v", err)
 		utils.WriteJSONError(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -115,6 +147,17 @@ func CourseCreationChatHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(finalBytes)
 
 	log.Printf("[CourseCreationChatHandler] Response sent, nextStep: %s", chatResp.NextStep)
+}
+
+func readRequestBody(r *http.Request) ([]byte, error) {
+	defer r.Body.Close()
+
+	var raw map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(raw)
 }
 
 // isFinalDraftComplete checks if all required fields are present and valid

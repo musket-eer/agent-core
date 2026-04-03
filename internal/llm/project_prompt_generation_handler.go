@@ -52,6 +52,21 @@ var (
 			PromptName: "project_prompt_generator_planning",
 			Version:    1,
 		},
+		"graph:implementation": {
+			Key:        "prompt_graph_generator_implementation",
+			PromptName: "prompt_graph_generator_implementation",
+			Version:    1,
+		},
+		"graph:planning": {
+			Key:        "prompt_graph_generator_planning",
+			PromptName: "prompt_graph_generator_planning",
+			Version:    1,
+		},
+		"graph:assignment": {
+			Key:        "prompt_graph_generator_assignment",
+			PromptName: "prompt_graph_generator_assignment",
+			Version:    1,
+		},
 	}
 )
 
@@ -61,12 +76,15 @@ type GenerateProjectPromptRequest struct {
 	GenerationMode string                      `json:"generationMode"`
 	Context        ProjectPromptRequestContext `json:"context"`
 	Input          ProjectPromptInput          `json:"input"`
+	SourcePrompts  []ProjectPromptSourceNode   `json:"sourcePrompts"`
 	Snapshots      ProjectPromptSnapshots      `json:"snapshots"`
 }
 
 type ProjectPromptRequestContext struct {
-	CourseID  string `json:"courseId"`
-	ProjectID string `json:"projectId"`
+	CourseID           string `json:"courseId"`
+	ProjectID          string `json:"projectId"`
+	GraphSelectionMode string `json:"graphSelectionMode"`
+	RootPromptID       string `json:"rootPromptId"`
 }
 
 type ProjectPromptInput struct {
@@ -121,6 +139,17 @@ type ProjectPromptLearningEvent struct {
 	Payload     map[string]interface{} `json:"payload"`
 }
 
+type ProjectPromptSourceNode struct {
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	Type           string   `json:"type"`
+	GenerationMode string   `json:"generationMode"`
+	Prompt         string   `json:"prompt"`
+	Role           string   `json:"role"`
+	Position       int      `json:"position"`
+	Tags           []string `json:"tags"`
+}
+
 type GenerateProjectPromptResponse struct {
 	PromptID        string                        `json:"promptId"`
 	GeneratedPrompt string                        `json:"generatedPrompt"`
@@ -128,13 +157,16 @@ type GenerateProjectPromptResponse struct {
 }
 
 type GenerateProjectPromptMetadata struct {
-	Type         string `json:"type"`
-	Mode         string `json:"mode"`
-	AssetKey     string `json:"assetKey"`
-	AssetVersion int    `json:"assetVersion"`
-	ConceptCount int    `json:"conceptCount"`
-	EventCount   int    `json:"eventCount"`
-	LLMModel     string `json:"llmModel"`
+	Type                 string   `json:"type"`
+	Mode                 string   `json:"mode"`
+	AssetKey             string   `json:"assetKey"`
+	AssetVersion         int      `json:"assetVersion"`
+	ConceptCount         int      `json:"conceptCount"`
+	EventCount           int      `json:"eventCount"`
+	LLMModel             string   `json:"llmModel"`
+	SourcePromptCount    int      `json:"sourcePromptCount,omitempty"`
+	TraversalMode        string   `json:"traversalMode,omitempty"`
+	DerivedFromPromptIDs []string `json:"derivedFromPromptIds,omitempty"`
 }
 
 type projectPromptAssetRef struct {
@@ -154,13 +186,16 @@ type compiledProjectPromptContext struct {
 	Course         compiledProjectPromptCourse         `json:"course"`
 	Project        compiledProjectPromptProject        `json:"project"`
 	LearnerHistory compiledProjectPromptLearnerHistory `json:"learnerHistory"`
+	SourcePrompts  []compiledProjectPromptSource       `json:"sourcePrompts,omitempty"`
 	Instructions   compiledProjectPromptInstructions   `json:"instructions"`
 }
 
 type compiledProjectPromptRequest struct {
-	UserID         string `json:"userId"`
-	Type           string `json:"type"`
-	GenerationMode string `json:"generationMode"`
+	UserID             string `json:"userId"`
+	Type               string `json:"type"`
+	GenerationMode     string `json:"generationMode"`
+	GraphSelectionMode string `json:"graphSelectionMode,omitempty"`
+	RootPromptID       string `json:"rootPromptId,omitempty"`
 }
 
 type compiledProjectPromptCourse struct {
@@ -210,6 +245,17 @@ type compiledProjectPromptEvent struct {
 	Success bool   `json:"success"`
 }
 
+type compiledProjectPromptSource struct {
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	Type           string   `json:"type"`
+	GenerationMode string   `json:"generationMode"`
+	Prompt         string   `json:"prompt"`
+	Role           string   `json:"role"`
+	Position       int      `json:"position"`
+	Tags           []string `json:"tags,omitempty"`
+}
+
 type compiledProjectPromptInstructions struct {
 	Type         string `json:"type"`
 	Mode         string `json:"mode"`
@@ -219,8 +265,11 @@ type compiledProjectPromptInstructions struct {
 }
 
 type compiledProjectPromptStats struct {
-	ConceptCount int
-	EventCount   int
+	ConceptCount         int
+	EventCount           int
+	SourcePromptCount    int
+	TraversalMode        string
+	DerivedFromPromptIDs []string
 }
 
 func GenerateProjectPromptHandler(w http.ResponseWriter, r *http.Request) {
@@ -242,7 +291,7 @@ func GenerateProjectPromptHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	asset, err := resolveProjectPromptAsset(req.Type, req.GenerationMode)
+	asset, err := resolvePromptAssetForRequest(req)
 	if err != nil {
 		if errors.Is(err, errPromptAssetNotFound) {
 			utils.WriteJSONError(w, "Prompt asset not found", http.StatusNotFound)
@@ -265,13 +314,16 @@ func GenerateProjectPromptHandler(w http.ResponseWriter, r *http.Request) {
 		PromptID:        newProjectPromptID(),
 		GeneratedPrompt: generatedPrompt,
 		Metadata: GenerateProjectPromptMetadata{
-			Type:         strings.TrimSpace(strings.ToLower(req.Type)),
-			Mode:         strings.TrimSpace(strings.ToLower(req.GenerationMode)),
-			AssetKey:     asset.Key,
-			AssetVersion: asset.Version,
-			ConceptCount: stats.ConceptCount,
-			EventCount:   stats.EventCount,
-			LLMModel:     modelName,
+			Type:                 strings.TrimSpace(strings.ToLower(req.Type)),
+			Mode:                 strings.TrimSpace(strings.ToLower(req.GenerationMode)),
+			AssetKey:             asset.Key,
+			AssetVersion:         asset.Version,
+			ConceptCount:         stats.ConceptCount,
+			EventCount:           stats.EventCount,
+			LLMModel:             modelName,
+			SourcePromptCount:    stats.SourcePromptCount,
+			TraversalMode:        stats.TraversalMode,
+			DerivedFromPromptIDs: stats.DerivedFromPromptIDs,
 		},
 	}
 
@@ -305,11 +357,28 @@ func validateGenerateProjectPromptRequest(req GenerateProjectPromptRequest) erro
 	if strings.TrimSpace(req.Input.Title) == "" && strings.TrimSpace(req.Input.Goal) == "" {
 		return fmt.Errorf("Prompt input is too thin")
 	}
+	if req.SourcePrompts != nil {
+		for i, promptNode := range req.SourcePrompts {
+			if strings.TrimSpace(promptNode.ID) == "" {
+				return fmt.Errorf("sourcePrompts[%d].id is required", i)
+			}
+			if strings.TrimSpace(promptNode.Prompt) == "" {
+				return fmt.Errorf("sourcePrompts[%d].prompt is required", i)
+			}
+		}
+	}
+	if strings.TrimSpace(req.Context.GraphSelectionMode) != "" && len(req.SourcePrompts) == 0 {
+		return fmt.Errorf("sourcePrompts is required for graph generation")
+	}
 	return nil
 }
 
 func resolveProjectPromptAsset(promptType string, mode string) (projectPromptAsset, error) {
-	key := strings.TrimSpace(strings.ToLower(promptType)) + ":" + strings.TrimSpace(strings.ToLower(mode))
+	keyType := strings.TrimSpace(strings.ToLower(promptType))
+	if keyType == "" {
+		keyType = "project"
+	}
+	key := keyType + ":" + strings.TrimSpace(strings.ToLower(mode))
 	ref, ok := projectPromptAssetByKey[key]
 	if !ok {
 		return projectPromptAsset{}, errPromptAssetNotFound
@@ -330,15 +399,26 @@ func resolveProjectPromptAsset(promptType string, mode string) (projectPromptAss
 	}, nil
 }
 
+func resolvePromptAssetForRequest(req GenerateProjectPromptRequest) (projectPromptAsset, error) {
+	assetType := strings.TrimSpace(strings.ToLower(req.Type))
+	if len(req.SourcePrompts) > 0 {
+		assetType = "graph"
+	}
+	return resolveProjectPromptAsset(assetType, req.GenerationMode)
+}
+
 func compileProjectPromptContext(req GenerateProjectPromptRequest, asset projectPromptAsset) (compiledProjectPromptContext, compiledProjectPromptStats) {
 	course := compileProjectPromptCourseContext(req.Snapshots.Course, req.Snapshots.LearningEvents)
 	history := compileProjectPromptHistory(req.Snapshots.LearningEvents, course.FailureModes)
+	sourcePrompts := compileSourcePrompts(req.SourcePrompts)
 
 	packet := compiledProjectPromptContext{
 		Request: compiledProjectPromptRequest{
-			UserID:         strings.TrimSpace(req.UserID),
-			Type:           strings.TrimSpace(strings.ToLower(req.Type)),
-			GenerationMode: strings.TrimSpace(strings.ToLower(req.GenerationMode)),
+			UserID:             strings.TrimSpace(req.UserID),
+			Type:               strings.TrimSpace(strings.ToLower(req.Type)),
+			GenerationMode:     strings.TrimSpace(strings.ToLower(req.GenerationMode)),
+			GraphSelectionMode: strings.TrimSpace(strings.ToLower(req.Context.GraphSelectionMode)),
+			RootPromptID:       strings.TrimSpace(req.Context.RootPromptID),
 		},
 		Course: course,
 		Project: compiledProjectPromptProject{
@@ -352,6 +432,7 @@ func compileProjectPromptContext(req GenerateProjectPromptRequest, asset project
 			DifficultyScope: strings.TrimSpace(req.Input.DifficultyScope),
 		},
 		LearnerHistory: history,
+		SourcePrompts:  sourcePrompts,
 		Instructions: compiledProjectPromptInstructions{
 			Type:         strings.TrimSpace(strings.ToLower(req.Type)),
 			Mode:         strings.TrimSpace(strings.ToLower(req.GenerationMode)),
@@ -362,8 +443,11 @@ func compileProjectPromptContext(req GenerateProjectPromptRequest, asset project
 	}
 
 	stats := compiledProjectPromptStats{
-		ConceptCount: len(packet.Course.Concepts),
-		EventCount:   len(packet.LearnerHistory.RecentEvents),
+		ConceptCount:         len(packet.Course.Concepts),
+		EventCount:           len(packet.LearnerHistory.RecentEvents),
+		SourcePromptCount:    len(packet.SourcePrompts),
+		TraversalMode:        packet.Request.GraphSelectionMode,
+		DerivedFromPromptIDs: sourcePromptIDs(packet.SourcePrompts),
 	}
 
 	return packet, stats
@@ -518,6 +602,57 @@ func selectHighSignalEvents(events []ProjectPromptLearningEvent, limit int) []Pr
 	return out
 }
 
+func compileSourcePrompts(sourcePrompts []ProjectPromptSourceNode) []compiledProjectPromptSource {
+	if len(sourcePrompts) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(sourcePrompts))
+	out := make([]compiledProjectPromptSource, 0, len(sourcePrompts))
+	for idx, source := range sourcePrompts {
+		id := strings.TrimSpace(source.ID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, compiledProjectPromptSource{
+			ID:             id,
+			Title:          strings.TrimSpace(source.Title),
+			Type:           strings.TrimSpace(strings.ToLower(source.Type)),
+			GenerationMode: strings.TrimSpace(strings.ToLower(source.GenerationMode)),
+			Prompt:         strings.TrimSpace(source.Prompt),
+			Role:           firstNonEmpty(strings.TrimSpace(source.Role), "source_input"),
+			Position:       source.Position,
+			Tags:           normalizeStrings(source.Tags, 8),
+		})
+		if out[len(out)-1].Position == 0 && source.Position == 0 {
+			out[len(out)-1].Position = idx
+		}
+	}
+
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Position == out[j].Position {
+			return i < j
+		}
+		return out[i].Position < out[j].Position
+	})
+
+	return out
+}
+
+func sourcePromptIDs(sourcePrompts []compiledProjectPromptSource) []string {
+	out := make([]string, 0, len(sourcePrompts))
+	for _, source := range sourcePrompts {
+		if strings.TrimSpace(source.ID) != "" {
+			out = append(out, source.ID)
+		}
+	}
+	return out
+}
+
 func summarizeLearningEvent(event ProjectPromptLearningEvent) string {
 	parts := make([]string, 0, 2)
 	if topic := strings.TrimSpace(asStringValue(event.Payload["topic"])); topic != "" {
@@ -560,22 +695,14 @@ func generateProjectPromptText(ctx context.Context, packet compiledProjectPrompt
 		return "", config.ModelId, err
 	}
 
-	packetJSON, err := json.MarshalIndent(packet, "", "  ")
+	messages, err := buildPromptGenerationMessages(packet)
 	if err != nil {
 		return "", config.ModelId, err
 	}
 
-	userMessage := "Generate one high-quality prompt from the structured context below.\n" +
-		"The prompt should help another AI or agent execute the learner's work using the learner's actual course knowledge.\n" +
-		"Keep it concrete, structured, and constraint-aware.\n\n" +
-		string(packetJSON)
-
 	payload := map[string]interface{}{
-		"model": config.ModelId,
-		"messages": []Message{
-			{Role: "system", Content: packet.Instructions.TemplateBody},
-			{Role: "user", Content: userMessage},
-		},
+		"model":    config.ModelId,
+		"messages": messages,
 	}
 
 	rawResponse, err := getLLMCallQueue().submit(ctx, func() (string, error) {
@@ -590,6 +717,63 @@ func generateProjectPromptText(ctx context.Context, packet compiledProjectPrompt
 		return "", config.ModelId, fmt.Errorf("empty prompt returned from LLM")
 	}
 	return finalText, config.ModelId, nil
+}
+
+func buildPromptGenerationMessages(packet compiledProjectPromptContext) ([]Message, error) {
+	basePacket := struct {
+		Request        compiledProjectPromptRequest        `json:"request"`
+		Course         compiledProjectPromptCourse         `json:"course"`
+		Project        compiledProjectPromptProject        `json:"project"`
+		LearnerHistory compiledProjectPromptLearnerHistory `json:"learnerHistory"`
+	}{
+		Request:        packet.Request,
+		Course:         packet.Course,
+		Project:        packet.Project,
+		LearnerHistory: packet.LearnerHistory,
+	}
+
+	contextJSON, err := json.MarshalIndent(basePacket, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+
+	messages := []Message{
+		{Role: "system", Content: packet.Instructions.TemplateBody},
+	}
+
+	if len(packet.SourcePrompts) > 0 {
+		for idx, source := range packet.SourcePrompts {
+			messages = append(messages, Message{
+				Role: "user",
+				Content: fmt.Sprintf(
+					"Source prompt %d (role: %s)\nID: %s\nTitle: %s\nType: %s\nMode: %s\nTags: %s\n\n%s",
+					idx+1,
+					firstNonEmpty(source.Role, "source_input"),
+					source.ID,
+					firstNonEmpty(source.Title, "Untitled Prompt"),
+					firstNonEmpty(source.Type, "prompt"),
+					firstNonEmpty(source.GenerationMode, "unknown"),
+					strings.Join(source.Tags, ", "),
+					source.Prompt,
+				),
+			})
+		}
+
+		messages = append(messages, Message{
+			Role:    "user",
+			Content: "Current generation request and grounded context:\n\n" + string(contextJSON),
+		})
+		return messages, nil
+	}
+
+	messages = append(messages, Message{
+		Role: "user",
+		Content: "Generate one high-quality prompt from the structured context below.\n" +
+			"The prompt should help another AI or agent execute the learner's work using the learner's actual course knowledge.\n" +
+			"Keep it concrete, structured, and constraint-aware.\n\n" +
+			string(contextJSON),
+	})
+	return messages, nil
 }
 
 func newProjectPromptID() string {
