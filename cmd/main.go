@@ -89,6 +89,7 @@ func main() {
 func registerLLMClients() []string {
 	registered := 0
 	aliases := make([]string, 0, 8)
+	bedrockOnly := strings.EqualFold(strings.TrimSpace(os.Getenv("BEDROCK_ONLY")), "true")
 	register := func(alias string, client llm.LLMClient) {
 		llm.RegisterLLMClient(alias, client)
 		registered++
@@ -99,46 +100,6 @@ func registerLLMClients() []string {
 		log.Printf("ℹ️ LLM client source alias=%s url=%s key=%s", alias, maskURL(url), maskSecret(key))
 	}
 
-	deepseekBaseURL := firstNonEmpty(
-		os.Getenv("DEEPSEEK_BASE_URL"),
-		os.Getenv("DEEPSEEK_GENERAL_URL"),
-	)
-	deepseekGeneralKey := os.Getenv("DEEPSEEK_GENERAL_API_KEY")
-	deepseekChatKey := os.Getenv("DEEPSEEK_CHAT_API_KEY")
-	deepseekChatURL := firstNonEmpty(os.Getenv("DEEPSEEK_CHAT_URL"), deepseekBaseURL)
-
-	// Backward-compatible aliases used by existing endpoint configs.
-	if strings.TrimSpace(deepseekGeneralKey) != "" && strings.TrimSpace(deepseekBaseURL) != "" {
-		client := clients.NewDeepseekClient(deepseekGeneralKey, deepseekBaseURL)
-		register("general", client)
-		logClientSource("general", deepseekBaseURL, deepseekGeneralKey)
-		register("deepseek-general", client)
-		logClientSource("deepseek-general", deepseekBaseURL, deepseekGeneralKey)
-	}
-	if strings.TrimSpace(deepseekChatKey) != "" && strings.TrimSpace(deepseekChatURL) != "" {
-		client := clients.NewDeepseekClient(deepseekChatKey, deepseekChatURL)
-		register("chat", client)
-		logClientSource("chat", deepseekChatURL, deepseekChatKey)
-		register("deepseek-chat", client)
-		logClientSource("deepseek-chat", deepseekChatURL, deepseekChatKey)
-	}
-
-	// Optional extra Deepseek/OpenAI-compatible aliases.
-	registerDeepseekAlias := func(alias, key, url string) {
-		if strings.TrimSpace(key) == "" || strings.TrimSpace(url) == "" {
-			return
-		}
-		register(alias, clients.NewDeepseekClient(key, url))
-		logClientSource(alias, url, key)
-	}
-	registerDeepseekAlias("deepseek-reasoner", os.Getenv("DEEPSEEK_REASONER_API_KEY"), firstNonEmpty(os.Getenv("DEEPSEEK_REASONER_URL"), deepseekBaseURL))
-	registerDeepseekAlias("deepseek-fast", os.Getenv("DEEPSEEK_FAST_API_KEY"), firstNonEmpty(os.Getenv("DEEPSEEK_FAST_URL"), deepseekBaseURL))
-	registerDeepseekAlias("openai-general", firstNonEmptyEnv("OPENAI_GENERAL_KEY", "OPENAI_API_KEY"), firstNonEmptyEnv("OPENAI_GENERAL_URL", "OPENAI_BASE_URL"))
-	registerDeepseekAlias("openai-chat", firstNonEmptyEnv("OPENAI_CHAT_KEY", "OPENAI_CHAT_API_KEY"), firstNonEmptyEnv("OPENAI_CHAT_URL", "OPENAI_CHAT_BASE_URL"))
-	registerDeepseekAlias("openai-exams", firstNonEmptyEnv("OPENAI_EXAMS_KEY", "OPENAI_GENERAL_KEY", "OPENAI_API_KEY"), firstNonEmptyEnv("OPENAI_EXAMS_URL", "OPENAI_GENERAL_URL", "OPENAI_BASE_URL"))
-
-	// Gemini aliases are intentionally disabled for now.
-
 	// Bedrock aliases.
 	awsRegion := firstNonEmpty(os.Getenv("AWS_REGION"), os.Getenv("AWS_DEFAULT_REGION"))
 	if strings.TrimSpace(awsRegion) != "" {
@@ -146,11 +107,62 @@ func registerLLMClients() []string {
 		if err != nil {
 			log.Printf("⚠️ Skipping bedrock clients: %v", err)
 		} else {
+			if bedrockOnly {
+				log.Printf("⚠️ BEDROCK_ONLY=true: registering Bedrock for all default aliases")
+				register("general", bedrockClient)
+				logClientSource("general", awsRegion, "aws-config")
+				register("chat", bedrockClient)
+				logClientSource("chat", awsRegion, "aws-config")
+				register("deepseek-general", bedrockClient)
+				logClientSource("deepseek-general", awsRegion, "aws-config")
+				register("deepseek-chat", bedrockClient)
+				logClientSource("deepseek-chat", awsRegion, "aws-config")
+			}
 			register("bedrock-general", bedrockClient)
 			logClientSource("bedrock-general", awsRegion, "aws-config")
 			register("bedrock-chat", bedrockClient)
 			logClientSource("bedrock-chat", awsRegion, "aws-config")
 		}
+	}
+
+	if !bedrockOnly {
+		deepseekBaseURL := firstNonEmpty(
+			os.Getenv("DEEPSEEK_BASE_URL"),
+			os.Getenv("DEEPSEEK_GENERAL_URL"),
+		)
+		deepseekGeneralKey := os.Getenv("DEEPSEEK_GENERAL_API_KEY")
+		deepseekChatKey := os.Getenv("DEEPSEEK_CHAT_API_KEY")
+		deepseekChatURL := firstNonEmpty(os.Getenv("DEEPSEEK_CHAT_URL"), deepseekBaseURL)
+
+		// Backward-compatible aliases used by existing endpoint configs.
+		if strings.TrimSpace(deepseekGeneralKey) != "" && strings.TrimSpace(deepseekBaseURL) != "" {
+			client := clients.NewDeepseekClient(deepseekGeneralKey, deepseekBaseURL)
+			register("general", client)
+			logClientSource("general", deepseekBaseURL, deepseekGeneralKey)
+			register("deepseek-general", client)
+			logClientSource("deepseek-general", deepseekBaseURL, deepseekGeneralKey)
+		}
+		if strings.TrimSpace(deepseekChatKey) != "" && strings.TrimSpace(deepseekChatURL) != "" {
+			client := clients.NewDeepseekClient(deepseekChatKey, deepseekChatURL)
+			register("chat", client)
+			logClientSource("chat", deepseekChatURL, deepseekChatKey)
+			register("deepseek-chat", client)
+			logClientSource("deepseek-chat", deepseekChatURL, deepseekChatKey)
+		}
+
+		// Optional extra Deepseek/OpenAI-compatible aliases.
+		registerDeepseekAlias := func(alias, key, url string) {
+			if strings.TrimSpace(key) == "" || strings.TrimSpace(url) == "" {
+				return
+			}
+			register(alias, clients.NewDeepseekClient(key, url))
+			logClientSource(alias, url, key)
+		}
+		registerDeepseekAlias("deepseek-reasoner", os.Getenv("DEEPSEEK_REASONER_API_KEY"), firstNonEmpty(os.Getenv("DEEPSEEK_REASONER_URL"), deepseekBaseURL))
+		registerDeepseekAlias("deepseek-fast", os.Getenv("DEEPSEEK_FAST_API_KEY"), firstNonEmpty(os.Getenv("DEEPSEEK_FAST_URL"), deepseekBaseURL))
+		registerDeepseekAlias("openai-general", firstNonEmptyEnv("OPENAI_GENERAL_KEY", "OPENAI_API_KEY"), firstNonEmptyEnv("OPENAI_GENERAL_URL", "OPENAI_BASE_URL"))
+		registerDeepseekAlias("openai-chat", firstNonEmptyEnv("OPENAI_CHAT_KEY", "OPENAI_CHAT_API_KEY"), firstNonEmptyEnv("OPENAI_CHAT_URL", "OPENAI_CHAT_BASE_URL"))
+		registerDeepseekAlias("openai-exams", firstNonEmptyEnv("OPENAI_EXAMS_KEY", "OPENAI_GENERAL_KEY", "OPENAI_API_KEY"), firstNonEmptyEnv("OPENAI_EXAMS_URL", "OPENAI_GENERAL_URL", "OPENAI_BASE_URL"))
 	}
 
 	log.Printf("✅ LLM client registry ready: total aliases=%d", registered)

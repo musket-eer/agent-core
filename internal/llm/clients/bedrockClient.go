@@ -1,12 +1,13 @@
 package clients
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"strings"
 
 	"agent-core/internal/llm/configs"
 
@@ -17,6 +18,16 @@ import (
 
 type BedrockClient struct {
 	AwsClient *bedrockruntime.Client
+}
+
+type bedrockMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type extractedBedrockInput struct {
+	System   string
+	Messages []bedrockMessage
 }
 
 // NewBedrockClient initializes a BedrockClient for the specified AWS region
@@ -34,33 +45,31 @@ func (c *BedrockClient) Call(endpoint string, params map[string]interface{}) (st
 	for k := range params {
 		log.Println("param key:", k)
 	}
-	
+
 	// Get model configuration for this endpoint
 	cfg, ok := configs.GetBedrockConfig(endpoint)
 	if !ok {
-		log.Printf("[BedrockClient.Call] No Bedrock config found for endpoint: %s", endpoint)
-		return "", fmt.Errorf("no Bedrock config found for endpoint: %s", endpoint)
+		cfg = configs.DefaultBedrockConfig()
+		log.Printf("[BedrockClient.Call] No Bedrock config found for endpoint: %s, using default config", endpoint)
 	}
 	log.Printf("[BedrockClient.Call] Loaded config for endpoint: %s", endpoint)
 
-	// Extract prompt from params["input"]["prompt"]
-	input, ok := params["prompt"].(string)
-	if !ok {
-		log.Printf("[BedrockClient.Call] Missing 'prompt' field in params")
-		return "", fmt.Errorf("missing 'prompt' field")
+	input, err := extractBedrockInput(params)
+	if err != nil {
+		log.Printf("[BedrockClient.Call] Missing prompt in params: %v", err)
+		return "", err
 	}
-	promptStr := input
-	log.Printf("[BedrockClient.Call] Extracted prompt from params")
+	log.Printf("[BedrockClient.Call] Extracted Bedrock input from params")
 
-	// Format Claude-style prompt
-	fullPrompt := fmt.Sprintf("\n\nHuman: %s\n\nAssistant:", promptStr)
-	log.Printf("[BedrockClient.Call] Formatted Claude-style prompt")
-
-	// Build payload
+	// Build Claude 3 messages payload
 	payload := map[string]interface{}{
-		"prompt":                fullPrompt,
-		"temperature":           cfg.Temperature,
-		"max_tokens_to_sample":  cfg.MaxTokensToSample,
+		"anthropic_version": "bedrock-2023-05-31",
+		"temperature":       cfg.Temperature,
+		"max_tokens":        cfg.MaxTokensToSample,
+		"messages":          input.Messages,
+	}
+	if strings.TrimSpace(input.System) != "" {
+		payload["system"] = input.System
 	}
 	for k, v := range cfg.OtherParams {
 		payload[k] = v
@@ -78,8 +87,8 @@ func (c *BedrockClient) Call(endpoint string, params map[string]interface{}) (st
 	if cfg.InferenceProfileArn != "" {
 		log.Printf("[BedrockClient.Call] Using InvokeModelWithConfig for Claude 3.5+")
 		resp, err := c.AwsClient.InvokeModel(context.TODO(), &bedrockruntime.InvokeModelInput{
-			ModelId: aws.String(cfg.ModelId),
-			Body:    body,
+			ModelId:     aws.String(cfg.ModelId),
+			Body:        body,
 			ContentType: aws.String("application/json"),
 			Accept:      aws.String("application/json"),
 		})
@@ -118,13 +127,111 @@ func (c *BedrockClient) Call(endpoint string, params map[string]interface{}) (st
 	var decoded map[string]interface{}
 	if err := json.Unmarshal(result, &decoded); err == nil {
 		log.Printf("[BedrockClient.Call] Decoded JSON from response body")
-		if msg, ok := decoded["completion"].(string); ok {
-			log.Printf("[BedrockClient.Call] Found 'completion' in response, returning it")
+		if msg, ok := decoded["completion"].(string); ok && strings.TrimSpace(msg) != "" {
+			log.Printf("[BedrockClient.Call] Found legacy 'completion' in response, returning it")
 			return msg, nil
+		}
+		if content, ok := decoded["content"].([]interface{}); ok {
+			var parts []string
+			for _, item := range content {
+				part, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if text, ok := part["text"].(string); ok && strings.TrimSpace(text) != "" {
+					parts = append(parts, text)
+				}
+			}
+			if len(parts) > 0 {
+				return strings.Join(parts, "\n"), nil
+			}
 		}
 	} else {
 		log.Printf("[BedrockClient.Call] Failed to decode JSON from response: %v", err)
 	}
 
 	return string(result), nil
+}
+
+func extractBedrockInput(params map[string]interface{}) (extractedBedrockInput, error) {
+	if params == nil {
+		return extractedBedrockInput{}, fmt.Errorf("missing request params")
+	}
+	if input, ok := params["prompt"].(string); ok && strings.TrimSpace(input) != "" {
+		return extractedBedrockInput{
+			Messages: []bedrockMessage{{Role: "user", Content: strings.TrimSpace(input)}},
+		}, nil
+	}
+	if inputMap, ok := params["input"].(map[string]string); ok {
+		if prompt := strings.TrimSpace(inputMap["prompt"]); prompt != "" {
+			return extractedBedrockInput{
+				Messages: []bedrockMessage{{Role: "user", Content: prompt}},
+			}, nil
+		}
+	}
+	if inputMap, ok := params["input"].(map[string]interface{}); ok {
+		if prompt, ok := inputMap["prompt"].(string); ok && strings.TrimSpace(prompt) != "" {
+			return extractedBedrockInput{
+				Messages: []bedrockMessage{{Role: "user", Content: strings.TrimSpace(prompt)}},
+			}, nil
+		}
+	}
+	if messages, ok := params["messages"].([]interface{}); ok {
+		input := normalizeMessages(messages)
+		if len(input.Messages) > 0 {
+			return input, nil
+		}
+	}
+	if messages, ok := params["messages"].([]map[string]interface{}); ok {
+		items := make([]interface{}, 0, len(messages))
+		for _, message := range messages {
+			items = append(items, message)
+		}
+		input := normalizeMessages(items)
+		if len(input.Messages) > 0 {
+			return input, nil
+		}
+	}
+	return extractedBedrockInput{}, fmt.Errorf("missing prompt field")
+}
+
+func normalizeMessages(messages []interface{}) extractedBedrockInput {
+	out := extractedBedrockInput{
+		Messages: make([]bedrockMessage, 0, len(messages)),
+	}
+	systemParts := make([]string, 0, 2)
+	for _, raw := range messages {
+		msg, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		role, _ := msg["role"].(string)
+		content, _ := msg["content"].(string)
+		role = strings.TrimSpace(role)
+		content = strings.TrimSpace(content)
+		if content == "" {
+			continue
+		}
+		if role == "" || role == "user" || role == "assistant" {
+			normalizedRole := role
+			if normalizedRole == "" {
+				normalizedRole = "user"
+			}
+			out.Messages = append(out.Messages, bedrockMessage{
+				Role:    normalizedRole,
+				Content: content,
+			})
+			continue
+		}
+		if role == "system" {
+			systemParts = append(systemParts, content)
+			continue
+		}
+		out.Messages = append(out.Messages, bedrockMessage{
+			Role:    "user",
+			Content: role + ": " + content,
+		})
+	}
+	out.System = strings.Join(systemParts, "\n\n")
+	return out
 }

@@ -275,7 +275,7 @@ type compiledProjectPromptStats struct {
 func GenerateProjectPromptHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[GenerateProjectPromptHandler] Incoming request: %s %s", r.Method, r.URL.Path)
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		utils.WriteJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -286,7 +286,7 @@ func GenerateProjectPromptHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateGenerateProjectPromptRequest(req); err != nil {
+	if err := validateGenerateProjectPromptRequest(r.URL.Path, req); err != nil {
 		utils.WriteJSONError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -333,7 +333,7 @@ func GenerateProjectPromptHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func validateGenerateProjectPromptRequest(req GenerateProjectPromptRequest) error {
+func validateGenerateProjectPromptRequest(routePath string, req GenerateProjectPromptRequest) error {
 	if strings.TrimSpace(req.UserID) == "" {
 		return fmt.Errorf("userId is required")
 	}
@@ -367,10 +367,14 @@ func validateGenerateProjectPromptRequest(req GenerateProjectPromptRequest) erro
 			}
 		}
 	}
-	if strings.TrimSpace(req.Context.GraphSelectionMode) != "" && len(req.SourcePrompts) == 0 {
+	if requiresGraphSourcePrompts(routePath) && len(req.SourcePrompts) == 0 {
 		return fmt.Errorf("sourcePrompts is required for graph generation")
 	}
 	return nil
+}
+
+func requiresGraphSourcePrompts(routePath string) bool {
+	return strings.TrimSpace(routePath) == "/api/prompts/generate-from-graph"
 }
 
 func resolveProjectPromptAsset(promptType string, mode string) (projectPromptAsset, error) {

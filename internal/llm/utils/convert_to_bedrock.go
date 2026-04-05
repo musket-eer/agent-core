@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 )
 
@@ -11,12 +11,12 @@ func ConvertToBedrockPayload(
 ) (map[string]interface{}, error) {
 	input, ok := canonical["input"].(map[string]string)
 	if !ok {
-		return nil, fmt.Errorf("missing or invalid input.prompt")
+		return nil, errors.New("missing or invalid input.prompt")
 	}
 
 	prompt, ok := input["prompt"]
 	if !ok || prompt == "" {
-		return nil, fmt.Errorf("prompt not found or empty in input")
+		return nil, errors.New("prompt not found or empty in input")
 	}
 
 	// Default fallbacks in case type assertion fails
@@ -33,14 +33,19 @@ func ConvertToBedrockPayload(
 	// Handle Claude prompt format
 	switch {
 	case strings.HasPrefix(modelId, "anthropic.claude"):
-		claudePrompt := fmt.Sprintf("\n\nHuman: %s\n\nAssistant:", prompt)
 		return map[string]interface{}{
-			"prompt":                claudePrompt,
-			"temperature":           temperature,
-			"max_tokens_to_sample": maxTokens,
+			"anthropic_version": "bedrock-2023-05-31",
+			"messages": []map[string]interface{}{
+				{
+					"role":    "user",
+					"content": prompt,
+				},
+			},
+			"temperature": temperature,
+			"max_tokens":  maxTokens,
 		}, nil
 
 	default:
-		return nil, fmt.Errorf("unsupported model for Bedrock: %s", modelId)
+		return nil, errors.New("unsupported model for Bedrock: " + modelId)
 	}
 }
